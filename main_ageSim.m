@@ -29,7 +29,7 @@ PDmode = 1; % PDmode = 1 generates the progeny distribution
 lagBetweenSamples = 0; % lag between two consecutive samples; 0 (and 1 but to sample every time step, use 0) means every time point sampled, CAUTION: 2 means every second times step, 3 every third, etc.
 sampleFrac = 1; % fraction of the progeny in each time step that are recorded
 saveMode = 0; % 0: do nothing, 1: saves the cultural composition of the last population as a.mat file
-freqMode = 1; % 0: do nothing, 1: records the frequencies of all cultural variant types in the interval [1,tMax] and saves it as .txt file
+freqMode = 0; % 0: do nothing, 1: records the frequencies of all cultural variant types in the interval [1,tMax] and saves it as .txt file
 
 for sim = 1:itMax
     
