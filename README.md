@@ -24,3 +24,9 @@ It is not straightforward to determine when the cultural system has reached equi
 `get_dynamics.m`
 
 describes the cultural and demographic dynamics of the considered cultural system. 
+
+The files 
+
+`freqTime_*.csv` 
+
+contain the frequencies of all variant types that occur in the interval _[0,tMax]_ generated with the parameter values indicated in the name (files with the suffix _ALL_ indicates the 'All sceanrio', files without it the '1 sceanrio'). CAUTION the files are pretty big as the output is saved very innefficiently: every row records the frequencies of a specific variant type at each time step (_tMax=5000_), 0 means the type wasn't present at this time step. 
