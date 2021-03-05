@@ -1,6 +1,6 @@
 # Neutral patterns in age structured populations
 
-This repository contains matlab code used to generate cultural change in age-structured populations. 
+This repository contains matlab code used to generate cultural change in age-structured populations and some output files. 
 
 ## Project aims
 
