@@ -15,7 +15,7 @@ The file
 
 `main_ageSim.m`
 
-defines all parameter used and executes the simulation. Depending on the chosen settings it provides the frequencies of all variant types over the time interval _[0,tMAx]_ (saved as a .csv file), the composition of the population at the last time step (saved as a .mat file) and the progeny distribution generated over _[0,tMAx]_ (sabed as a .csv file) as well as the estimation of its power law behaviour. The burn-in phase is carried out by the function
+defines all parameter used and executes the simulation. Depending on the chosen settings it provides the frequencies of all variant types over the time interval _[0,tMax]_ (saved as a .csv file), the composition of the population at the last time step (saved as a .mat file) and the progeny distribution generated over _[0,tMax]_ (sabed as a .csv file) as well as the estimation of its power law behaviour. The burn-in phase is carried out by the function
 
 `get_burnIn.m`.
 
