@@ -15,7 +15,7 @@ The file
 
 `main_ageSim.m`
 
-defines all parameter used and executes the simulation. Depending on the chosen settings it provides the frequencies of all variant types over the time interval _[0,tMax]_ (saved as a .csv file), the composition of the population at the last time step (saved as a .mat file) and the progeny distribution generated over _[0,tMax]_ (sabed as a .csv file) as well as the estimation of its power law behaviour. The burn-in phase is carried out by the function
+defines all parameter used and executes the simulation. Depending on the chosen settings it provides the frequencies of all variant types over the time interval _[0,tMax]_ (saved as a .mat file), the composition of the population at the last time step (saved as a .mat file) and the progeny distribution generated over _[0,tMax]_ (saved as a .csv file) as well as the estimation of its power law behaviour. The burn-in phase is carried out by the function
 
 `get_burnIn.m`.
 
@@ -27,6 +27,6 @@ describes the cultural and demographic dynamics of the considered cultural syste
 
 The files 
 
-`freqTime_*.csv` 
+`freqTime_*.mat` 
 
 contain the frequencies of all variant types that occur in the interval _[0,tMax]_ generated with the parameter values indicated in the name (files with the suffix _ALL_ indicates the 'All sceanrio', files without it the '1 sceanrio'). CAUTION the files are pretty big as the output is saved very innefficiently: every row records the frequencies of a specific variant type at each time step (_tMax=5000_), 0 means the type wasn't present at this time step. 
