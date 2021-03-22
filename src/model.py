@@ -54,7 +54,6 @@ class Simulator:
 
     def _get_dynamics(self, beta, mu, p_death, population, birth_date, n_traits):
         timestep = birth_date.max()
-        previous_population = population.copy()
         novel = self.rng.random(self.n_agents) < p_death
 
         copy_pool = np.arange(self.n_agents)
