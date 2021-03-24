@@ -3,7 +3,7 @@ import collections
 import numpy as np
 import tqdm
 
-from utils import reindex_array
+from utils import reindex_array, check_random_state
 
 
 class Simulator:
@@ -14,12 +14,14 @@ class Simulator:
         age_window=None,
         initial_traits=2,
         random_state=None,
+        disable_pbar=False,
     ):
         self.n_agents = n_agents
         self.timesteps = timesteps
         self.age_window = age_window
         self.initial_traits = initial_traits
-        self.rng = np.random.RandomState(random_state)
+        self.rng = check_random_state(random_state)
+        self.disable_pbar = disable_pbar
 
     def __call__(self, theta):
         beta, mu, p_death = theta
@@ -31,26 +33,26 @@ class Simulator:
         # We start with a warming-up phase, in which we run the model until all
         # initial traits have gone extinct
         n_traits = len(np.unique(population))
-        with tqdm.tqdm(desc="Burn-in period") as pbar:
+        with tqdm.tqdm(desc="Burn-in period", disable=self.disable_pbar) as pbar:
             while population.min() < self.initial_traits:
                 population, birth_date, n_traits, novel = self._get_dynamics(
                     beta, mu, p_death, population, birth_date, n_traits
                 )
                 pbar.update()
 
-        # Following the burn-in period, we sample n populations. 
+        # Following the burn-in period, we sample n populations.
         sample = np.zeros((self.timesteps, self.n_agents), dtype=np.int64)
-        progeny = []
-        
+
         population = reindex_array(population)
         birth_date = birth_date - birth_date.min()
-        for timestep in tqdm.trange(self.timesteps, desc="Generating populations"):
+        for timestep in tqdm.trange(
+            self.timesteps, desc="Generating populations", disable=self.disable_pbar
+        ):
             population, birth_date, n_traits, novel = self._get_dynamics(
                 beta, mu, p_death, population, birth_date, n_traits
             )
             sample[timestep] = population
-            progeny.append(np.flatnonzero(novel))
-        return sample, progeny
+        return sample
 
     def _get_dynamics(self, beta, mu, p_death, population, birth_date, n_traits):
         timestep = birth_date.max()
@@ -75,4 +77,3 @@ class Simulator:
         population[innovators] = np.arange(n_traits, n_traits + n_innovations)
         birth_date[novel] = timestep
         return population, birth_date, n_traits + n_innovations, novel
-
