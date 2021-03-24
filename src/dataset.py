@@ -2,6 +2,7 @@ from typing import NamedTuple, Dict, Iterable, Tuple
 
 import numpy as np
 import torch
+
 from torch.utils.data import Dataset, IterableDataset
 
 
@@ -40,6 +41,7 @@ class SimulationDataset(Dataset):
         
         self.simulator = simulator
         self.theta = prior.sample([num_simulations])
+        self.theta[np.random.choice(num_simulations, num_simulations // 2, replace=False)] = 0.0
         self.num_simulations = num_simulations
     
     def __getitem__(self, i):
@@ -57,8 +59,9 @@ class LazySimulationDataset(IterableDataset):
         self.num_simulations = num_simulations
 
     def __iter__(self):
-        for _ in range(self.num_simulations):
-            theta = self.prior.sample()
+        biased = np.random.random(self.num_simulations) < 0.5
+        for i in range(self.num_simulations):
+            theta = 0.0 if not biased[i] else self.prior.sample()
             yield theta, self.simulator(theta)
 
 
