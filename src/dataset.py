@@ -8,26 +8,25 @@ from torch.utils.data import Dataset, IterableDataset
 
 
 class PresimulatedDataset(Dataset):
-    def __init__(self, theta, samples):
+    def __init__(self, ids, theta, samples):
         self.dataset = torch.FloatTensor(samples)
         self.theta = torch.FloatTensor(theta)
+        self.ids = torch.LongTensor(ids)
 
     @classmethod
-    def load(cls, fname, summary_statistics=False, random_sample=None):
+    def load(cls, fname, random_sample=None):
+        ids = np.load(f"{fname}.ids.npy")
         theta = np.load(f"{fname}.theta.npy")
-        if summary_statistics:
-            samples = np.load(f"{fname}.features.npy")
-        else:
-            samples = np.load(f"{fname}.samples.npy")
+        samples = np.load(f"{fname}.samples.npy")
         if random_sample is not None:
             if isinstance(random_sample, float):
                 random_sample = int(random_sample * samples.shape[0])
             indices = np.random.randint(0, samples.shape[0], size=random_sample)
-            theta, samples = theta[indices], samples[indices]
-        return PresimulatedDataset(theta, samples)
+            ids, theta, samples = ids[indices], theta[indices], samples[indices]
+        return PresimulatedDataset(ids, theta, samples)
 
     def __getitem__(self, i):
-        theta = self.theta[i]
+        theta = self.theta[np.searchsorted(self.ids, i, side="right") - 1]
         if theta.dim() == 0:
             theta = theta.view(-1)
         return theta, self.dataset[i]

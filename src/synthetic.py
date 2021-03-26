@@ -43,8 +43,13 @@ if __name__ == "__main__":
     )
 
     pool = Parallel(args.workers, args.simulations)
+    biased = np.random.random(args.simulations) < 0.5
     for i in range(args.simulations):
-        pool.apply_async(simulate, args=(prior.sample(), args.agents, args.timesteps))
+        theta = prior.sample()
+        if not biased[i]:
+            theta[0] = 0.0
+            print(theta)
+        pool.apply_async(simulate, args=(theta, args.agents, args.timesteps))
     pool.join()
 
     theta, samples = zip(*pool.result())
