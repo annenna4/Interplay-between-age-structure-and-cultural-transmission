@@ -1,3 +1,4 @@
+import multiprocessing as mp
 import numpy as np
 
 
@@ -25,3 +26,32 @@ def check_random_state(seed):
 def check_array(x):
     x = np.asarray(x)
     return np.array([x]) if x.ndim == 1 else x
+
+
+def bincount2d(a):
+    N = a.max() + 1
+    a_offs = a + np.arange(a.shape[0])[:,None] * N
+    return np.bincount(a_offs.flatten(), minlength=a.shape[0] * N).reshape(-1, N)
+
+
+class Parallel:
+    def __init__(self, n_workers, n_tasks):
+        self.pool = mp.Pool(n_workers)
+        self._results = []
+        self._pb = tqdm.tqdm(total=n_tasks)
+
+    def apply_async(self, fn, args=None):
+        self.pool.apply_async(fn, args=args, callback=self._completed)
+
+    def _completed(self, result):
+        self._results.append(result)
+        self._pb.update()
+
+    def join(self):
+        self.pool.close()
+        self.pool.join()
+
+    def result(self):
+        self._pb.close()
+        self.pool.close()
+        return self._results

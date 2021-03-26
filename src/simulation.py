@@ -1,30 +1,38 @@
 import collections
 
 import numpy as np
+import torch
 import tqdm
 
-from utils import reindex_array, check_random_state
+from augmentation import TimeseriesTransformer
+from utils import reindex_array, check_random_state, bincount2d
 
 
 class Simulator:
     def __init__(
         self,
         n_agents,
+        *transformers: TimeseriesTransformer,
         timesteps=10_000,
+        warmup=1000,
         age_window=None,
         initial_traits=2,
+        top_n=0,
         random_state=None,
         disable_pbar=False,
     ):
         self.n_agents = n_agents
+        self.transformers = transformers
         self.timesteps = timesteps
+        self.warmup = warmup
         self.age_window = age_window
         self.initial_traits = initial_traits
+        self.top_n = top_n
         self.rng = check_random_state(random_state)
         self.disable_pbar = disable_pbar
 
     def __call__(self, theta):
-        beta, mu, p_death = theta
+        beta, mu, p_death = theta.item()
         # Initialize the population with n traits equally distributed over the agents
         population = self.rng.choice(self.initial_traits, size=self.n_agents)
         # Randomly associate birth dates with each of the traits
@@ -33,12 +41,18 @@ class Simulator:
         # We start with a warming-up phase, in which we run the model until all
         # initial traits have gone extinct
         n_traits = len(np.unique(population))
-        with tqdm.tqdm(desc="Burn-in period", disable=self.disable_pbar) as pbar:
-            while population.min() < self.initial_traits:
-                population, birth_date, n_traits, novel = self._get_dynamics(
-                    beta, mu, p_death, population, birth_date, n_traits
-                )
-                pbar.update()
+        # with tqdm.tqdm(desc="Burn-in period", disable=self.disable_pbar) as pbar:
+        #     while population.min() < self.initial_traits:
+        #         population, birth_date, n_traits, novel = self._get_dynamics(
+        #             beta, mu, p_death, population, birth_date, n_traits
+        #         )
+        #         pbar.update()
+        for timestep in tqdm.trange(
+            self.warmup, desc="Warming up", disable=self.disable_pbar
+        ):
+            population, birth_date, n_traits, novel = self._get_dynamics(
+                beta, mu, p_death, population, birth_date, n_traits
+            )
 
         # Following the burn-in period, we sample n populations.
         sample = np.zeros((self.timesteps, self.n_agents), dtype=np.int64)
@@ -52,6 +66,15 @@ class Simulator:
                 beta, mu, p_death, population, birth_date, n_traits
             )
             sample[timestep] = population
+
+        sample = bincount2d(sample)
+
+        if self.top_n > 0:
+            sample = sample[:, sample.sum(0).argsort()[-self.top_n :]]
+        sample = sample.T
+
+        for transformer in self.transformers:
+            sample = torch.FloatTensor(transformer(sample))
         return sample
 
     def _get_dynamics(self, beta, mu, p_death, population, birth_date, n_traits):

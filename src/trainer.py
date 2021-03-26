@@ -12,7 +12,8 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 
-from dataset import SimulationDataset, LazySimulationDataset, lazy_worker_init_fn
+from dataset import SimulationDataset, LazySimulationDataset
+from dataset import lazy_worker_init_fn, collate_timeseries
 from simulation import Simulator
 
 
@@ -36,10 +37,16 @@ def train(
         train_data,
         num_workers=num_workers,
         batch_size=batch_size,
+        collate_fn=collate_timeseries,
         worker_init_fn=lazy_worker_init_fn,
     )
     val_data = SimulationDataset(simulator, prior, num_simulations)
-    val_loader = DataLoader(val_data, num_workers=num_workers, batch_size=batch_size)
+    val_loader = DataLoader(
+        val_data,
+        num_workers=num_workers,
+        batch_size=batch_size,
+        collate_fn=collate_timeseries
+    )
 
     classifier = classifier.to(device)
     optimizer = torch.optim.Adam(classifier.parameters(), lr=learning_rate)
@@ -103,7 +110,7 @@ def test_epoch(classifier, loader, device):
                 x = x.unsqueeze(1)
             probs = classifier(x)
             labels = (theta != 0.0).float()
-            loss = F.binary_cross_entropy_with_logits(probs, labels)n                
+            loss = F.binary_cross_entropy_with_logits(probs, labels)
             epoch_loss.append(loss.item())
             auc.append(roc_auc_score(labels.cpu().numpy(), probs.cpu().numpy()))
     return np.mean(epoch_loss), np.mean(auc)
