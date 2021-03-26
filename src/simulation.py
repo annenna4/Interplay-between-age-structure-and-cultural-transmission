@@ -32,7 +32,7 @@ class Simulator:
         self.disable_pbar = disable_pbar
 
     def __call__(self, theta):
-        beta, mu, p_death = theta.item()
+        beta, mu, p_death = theta.numpy()
         # Initialize the population with n traits equally distributed over the agents
         population = self.rng.choice(self.initial_traits, size=self.n_agents)
         # Randomly associate birth dates with each of the traits

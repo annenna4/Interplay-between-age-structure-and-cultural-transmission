@@ -1,6 +1,6 @@
 import multiprocessing as mp
 import numpy as np
-
+import tqdm
 
 def reindex_array(x):
     _, x = np.unique(x, return_inverse=True)
