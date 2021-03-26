@@ -37,7 +37,7 @@ if __name__ == "__main__":
         ]),
         torch.tensor([
              0.1,   # beta high
-             0.001, # mu high
+             0.01, # mu high
              0.1,   # p_death high
         ])
     )
