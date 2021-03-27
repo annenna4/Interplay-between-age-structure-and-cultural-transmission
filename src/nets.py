@@ -3,8 +3,6 @@ import torch.nn as nn
 
 import torch.nn.functional as F
 
-from utils import get_arguments
-
 
 class Conv1dSamePadding(nn.Conv1d):
     def forward(self, input):
@@ -57,8 +55,6 @@ class FCN(nn.Module):
     def __init__(self, in_channels: int, num_classes: int = 1) -> None:
         super().__init__()
 
-        self.input_args = get_arguments()
-
         self.layers = nn.Sequential(
             ConvBlock(in_channels, 128, 7, 1),
             ConvBlock(128, 256, 5, 1),
@@ -99,7 +95,7 @@ class RNN(nn.Module):
             x, p=self.feature_dropout, training=self.training
         )
         out, _ = self.rnn(x)
-        return out.view(-1)
+        return out[:, -1:, ].view(-1) # TODO: check if correct
 
 
 class RNNFCN(nn.Module):
@@ -112,6 +108,7 @@ class RNNFCN(nn.Module):
         feature_dropout=0.0,
         bidirectional=False,
     ):
+        super().__init__()
         self.fcn = FCN(1)
         self.rnn = RNN(
             input_size,
@@ -123,4 +120,4 @@ class RNNFCN(nn.Module):
         )
 
     def forward(self, x):
-        return self.fcn(self.rnn(x))
+        return self.fcn(self.rnn(x).view(1, 1, -1))

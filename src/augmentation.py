@@ -1,6 +1,9 @@
 import logging
 import numpy as np
 
+import torch
+from torch.distributions import Distribution, Categorical
+
 import utils
 
 

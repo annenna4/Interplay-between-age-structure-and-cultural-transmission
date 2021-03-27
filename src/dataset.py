@@ -38,42 +38,35 @@ class PresimulatedDataset(Dataset):
 
 class SimulationDataset(Dataset):
     
-    def __init__(self, simulator, prior, num_simulations, ensemble=True):
+    def __init__(self, simulator, prior, num_simulations):
         
         self.simulator = simulator
         self.theta = prior.sample([num_simulations])
         self.theta[np.random.choice(num_simulations, num_simulations // 2, replace=False)] = 0.0
         self.num_simulations = num_simulations
-        self.ensemble = ensemble
     
     def __getitem__(self, i):
         theta, sample = self.theta[i], self.simulator(self.theta[i])
-        
 
     def __len__(self):
         return self.num_simulations
 
 
 class LazySimulationDataset(IterableDataset):
-    def __init__(self, simulator, prior, num_simulations, ensemble=True):
+    def __init__(self, simulator, prior, num_simulations):
         
         self.simulator = simulator
         self.prior = prior
         self.num_simulations = num_simulations
-        self.ensemble = ensemble
-        self.samples = []
 
     def __iter__(self):
         biased = np.random.random(self.num_simulations) < 0.5
         for i in range(self.num_simulations):
-            theta = torch.tensor(0.0) if not biased[i] else self.prior.sample()
+            theta = self.prior.sample()
+            if not biased[i]:
+                theta[0] = 0.0
             sample = self.simulator(theta)
-            if self.ensemble:
-                yield theta, sample.flatten()
-            else:
-                self.samples.extend([(theta, x) for x in sample])
-                theta, x = self.samples.pop(np.random.random_integers(0, len(self.samples)))
-                yield theta, x
+            yield theta, sample
 
 
 def lazy_worker_init_fn(worker_id):

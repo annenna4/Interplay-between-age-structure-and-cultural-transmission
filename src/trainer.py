@@ -6,13 +6,13 @@ from typing import Type
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 
-from dataset import SimulationDataset, LazySimulationDataset
+from dataset import LazySimulationDataset
 from dataset import lazy_worker_init_fn, collate_timeseries
 from simulation import Simulator
 
@@ -85,12 +85,11 @@ def train_epoch(classifier, loader, optimizer, device, clip_max_norm=None):
     epoch_loss = []
     for theta, x in loader:
         theta, x = theta.to(device), x.to(device)
-        if x.dim() == 2:
-            x = x.unsqueeze(1)
+        x = x.permute(1, 2, 0).float()
         optimizer.zero_grad()
         probs = classifier(x)
-        labels = (theta != 0.0).float()
-        loss = F.binary_cross_entropy_with_logits(probs, labels)
+        labels = (theta[:, 0] != 0.0).float()
+        loss = F.binary_cross_entropy_with_logits(probs, labels.unsqueeze(0))
         epoch_loss.append(loss.item())
         loss.backward()
         if clip_max_norm is not None:
@@ -102,15 +101,16 @@ def train_epoch(classifier, loader, optimizer, device, clip_max_norm=None):
 
 def test_epoch(classifier, loader, device):
     classifier.eval()
-    epoch_loss, auc = [], []
+    epoch_loss = []
+    biased, pobabilities = [], []
     with torch.no_grad():
         for theta, x in loader:
             theta, x = theta.to(device), x.to(device)
-            if x.dim() == 2:
-                x = x.unsqueeze(1)
+            x = x.permute(1, 2, 0)
             probs = classifier(x)
-            labels = (theta != 0.0).float()
-            loss = F.binary_cross_entropy_with_logits(probs, labels)
+            labels = (theta[:, 0] != 0.0).float()
+            loss = F.binary_cross_entropy_with_logits(probs, labels.unsqueeze(0))
             epoch_loss.append(loss.item())
-            auc.append(roc_auc_score(labels.cpu().numpy(), probs.cpu().numpy()))
-    return np.mean(epoch_loss), np.mean(auc)
+    biased.extend(labels.cpu().numpy().tolist())
+    probabilities.extend(probs.cpu().numpy().tolist())
+    return np.mean(epoch_loss), roc_auc_score(biased, probabilities)

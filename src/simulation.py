@@ -12,7 +12,6 @@ class Simulator:
     def __init__(
         self,
         n_agents,
-        *transformers: TimeseriesTransformer,
         timesteps=10_000,
         warmup=1000,
         age_window=None,
@@ -22,7 +21,6 @@ class Simulator:
         disable_pbar=False,
     ):
         self.n_agents = n_agents
-        self.transformers = transformers
         self.timesteps = timesteps
         self.warmup = warmup
         self.age_window = age_window
@@ -73,8 +71,6 @@ class Simulator:
             sample = sample[:, sample.sum(0).argsort()[-self.top_n :]]
         sample = sample.T
 
-        for transformer in self.transformers:
-            sample = torch.FloatTensor(transformer(sample))
         return sample
 
     def _get_dynamics(self, beta, mu, p_death, population, birth_date, n_traits):
