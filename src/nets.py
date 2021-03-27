@@ -68,4 +68,59 @@ class FCN(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.layers(x)
-        return self.final(x.mean(dim=-1)) # GAP
+        return self.final(x.mean(dim=-1))  # GAP
+
+
+class RNN(nn.Module):
+    def __init__(
+        self,
+        input_size,
+        hidden_size,
+        num_layers=1,
+        layer_dropout=0.0,
+        feature_dropout=0.0,
+        bidirectional=False,
+    ):
+        super().__init__()
+
+        self.rnn = nn.LSTM(
+            input_size,
+            hidden_size // (1 + bidirectional),
+            num_layers,
+            batch_first=True,
+            bidirectional=bidirectional,
+            dropout=(num_layers > 1) * layer_dropout,
+        )
+
+        self.feature_dropout = feature_dropout
+
+    def forward(self, x):
+        x = torch.nn.functional.dropout(
+            x, p=self.feature_dropout, training=self.training
+        )
+        out, _ = self.rnn(x)
+        return out.view(-1)
+
+
+class RNNFCN(nn.Module):
+    def __init__(
+        self,
+        input_size,
+        hidden_size,
+        num_layers=1,
+        layer_dropout=0.0,
+        feature_dropout=0.0,
+        bidirectional=False,
+    ):
+        self.fcn = FCN(1)
+        self.rnn = RNN(
+            input_size,
+            hidden_size,
+            num_layers=num_layers,
+            layer_dropout=layer_dropout,
+            feature_dropout=feature_dropout,
+            bidirectional=bidirectional,
+        )
+
+    def forward(self, x):
+        return self.fcn(self.rnn(x))
