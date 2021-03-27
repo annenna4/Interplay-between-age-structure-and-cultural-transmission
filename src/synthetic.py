@@ -13,14 +13,14 @@ from simulation import Simulator
 from utils import Parallel
 
 
-def simulate(theta, n_agents, timesteps):
-    simulator = Simulator(n_agents, timesteps=timesteps, disable_pbar=True)
+def simulate(theta, n_agents, timesteps, top_n):
+    simulator = Simulator(n_agents, timesteps=timesteps, top_n=top_n, disable_pbar=True)
     return theta.numpy(), simulator(theta)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-a", "--agents", type=int, default=10_000)
+    parser.add_argument("-a", "--agents", type=int, default=1000)
     parser.add_argument("-t", "--timesteps", type=int, default=1000)
     parser.add_argument("-s", "--simulations", type=int, default=10_000)
     parser.add_argument("-w", "--workers", type=int, default=1)
@@ -48,8 +48,7 @@ if __name__ == "__main__":
         theta = prior.sample()
         if not biased[i]:
             theta[0] = 0.0
-            print(theta)
-        pool.apply_async(simulate, args=(theta, args.agents, args.timesteps))
+        pool.apply_async(simulate, args=(theta, args.agents, args.timesteps, args.top_n))
     pool.join()
 
     theta, samples = zip(*pool.result())
