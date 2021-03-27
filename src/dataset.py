@@ -8,13 +8,14 @@ from torch.utils.data import Dataset, IterableDataset
 
 
 class PresimulatedDataset(Dataset):
-    def __init__(self, ids, theta, samples):
+    def __init__(self, ids, theta, samples, transform=None):
         self.dataset = torch.FloatTensor(samples)
         self.theta = torch.FloatTensor(theta)
         self.ids = torch.LongTensor(ids)
+        self.transform = transform
 
     @classmethod
-    def load(cls, fname, random_sample=None):
+    def load(cls, fname, random_sample=None, transform=None):
         ids = np.load(f"{fname}.ids.npy")
         theta = np.load(f"{fname}.theta.npy")
         samples = np.load(f"{fname}.samples.npy")
@@ -23,7 +24,7 @@ class PresimulatedDataset(Dataset):
                 random_sample = int(random_sample * samples.shape[0])
             indices = np.random.randint(0, samples.shape[0], size=random_sample)
             ids, theta, samples = ids[indices], theta[indices], samples[indices]
-        return PresimulatedDataset(ids, theta, samples)
+        return PresimulatedDataset(ids, theta, samples, transform=transform)
 
     def __getitem__(self, i):
         theta = self.theta[np.searchsorted(self.ids, i, side="right") - 1]
