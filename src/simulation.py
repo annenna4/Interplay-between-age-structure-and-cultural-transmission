@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import tqdm
 
-from augmentation import TimeseriesTransformer
+from augmentation import TimeseriesTransformer, HillNumbers
 from utils import reindex_array, check_random_state, bincount2d
 
 
@@ -19,6 +19,7 @@ class Simulator:
         top_n=0,
         random_state=None,
         disable_pbar=False,
+        summarize=False,
     ):
         self.n_agents = n_agents
         self.timesteps = timesteps
@@ -28,6 +29,7 @@ class Simulator:
         self.top_n = top_n
         self.rng = check_random_state(random_state)
         self.disable_pbar = disable_pbar
+        self.summarize = summarize
 
     def __call__(self, theta):
         beta, mu, p_death = theta.numpy()
@@ -71,6 +73,8 @@ class Simulator:
             sample = sample[:, sample.sum(0).argsort()[-self.top_n :]]
         sample = sample.T
 
+        if self.summarize:
+            sample = HillNumbers(q_step=0.5)(sample.T)
         return sample
 
     def _get_dynamics(self, beta, mu, p_death, population, birth_date, n_traits):
