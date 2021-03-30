@@ -1,3 +1,6 @@
+# NOTE: running with many cores might lead to a "too many files open" error. Increase ulimit
+#       to prevent that from happening.
+
 import argparse
 import json
 import multiprocessing as mp
@@ -7,6 +10,7 @@ from datetime import datetime
 
 import numpy as np
 import torch
+from torch.distributions import Uniform
 
 from augmentation import Normalizer
 from simulation import Simulator
@@ -39,9 +43,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     prior = utils.IndependentPriors(
-        Uniform(0.001, 0.01),  # beta prior
-        utils.Constant(0.001), # mu prior
-        Uniform(0.001, 0.1).   # p_death prior
+        Uniform(0.001, 0.01), # beta prior
+        Uniform(0.001, 0.01), # mu prior
+        Uniform(0.001, 0.1)   # p_death prior
     )
 
     pool = utils.Parallel(args.workers, args.simulations)
