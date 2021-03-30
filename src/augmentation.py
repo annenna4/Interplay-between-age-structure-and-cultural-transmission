@@ -79,8 +79,16 @@ class Randomizer(TimeseriesTransformer):
         noise = self.rng.normal(loc=0.0, scale=self.sigma, size=x.shape)
         return np.clip(x - noise, 0, 1)
 
-    
+
 class Normalizer(TimeseriesTransformer):
+    def __init__(self):
+        super().__init__()
+
+    def transform(self, x):
+        return x / x.sum(0)
+
+    
+class Standardizer(TimeseriesTransformer):
     def __init__(self, eps: float = 1e-8):
         self.eps = eps
         super().__init__()
@@ -145,10 +153,12 @@ class HillNumbers(TimeseriesTransformer):
         super().__init__()
 
     def transform(self, x):
-        if x.ndim > 1:
-            x = x[:, -1]  # only use final timestep
-        p = x[x > 0] / x.sum()
-        return torch.FloatTensor([self._transform(x, q, p) for q in self.q])
+        results = []
+        for t in x:
+            p = t[t > 0] / t.sum()
+            h = [self._transform(t, q, p) for q in self.q]
+            results.append(h)
+        return torch.FloatTensor(results)
 
     def _transform(self, x, q, p):
         return (
