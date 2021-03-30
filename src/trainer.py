@@ -1,7 +1,7 @@
 import copy
 
 from termcolor import colored
-from typing import Type
+from typing import Type, Callable
 
 import numpy as np
 import torch
@@ -9,22 +9,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 
-from dataset import LazySimulationDataset
+from dataset import LazySimulationDataset, SimulationDataset, PresimulatedDataset
 from dataset import lazy_worker_init_fn, collate_timeseries
 from simulation import Simulator
 
 
 def train(
+    data: PresimulatedDataset = None,
     prior: Type[torch.distributions.Distribution] = None,
     simulator: Type[Simulator] = None,
     num_simulations: int = None,
     n_epochs: int = 10,
     classifier: nn.Module = None,
+    transform: Callable = None,
     batch_size: int = 10,
     learning_rate: float = 0.001,
+    test_size=0.1,
     learning_patience: int = 5,
     device: str = "cpu",
     clip_max_norm: float = None,
@@ -32,20 +36,24 @@ def train(
 ):
 
     # Set up the training and validation data
-    train_data = LazySimulationDataset(simulator, prior, num_simulations)
+    if data is None:
+        train_data = LazySimulationDataset(simulator, prior, num_simulations, transform=transform)
+        val_data = SimulationDataset(simulator, prior, num_simulations, transform=transform)
+    else:
+        train_data, val_data = data.train_test_split(test_size=test_size)
+
     train_loader = DataLoader(
         train_data,
         num_workers=num_workers,
         batch_size=batch_size,
-        collate_fn=collate_timeseries,
         worker_init_fn=lazy_worker_init_fn,
+        # collate_fn=collate_timeseries
     )
-    val_data = SimulationDataset(simulator, prior, num_simulations)
     val_loader = DataLoader(
         val_data,
         num_workers=num_workers,
         batch_size=batch_size,
-        collate_fn=collate_timeseries
+        # collate_fn=collate_timeseries        
     )
 
     classifier = classifier.to(device)
@@ -68,7 +76,7 @@ def train(
         if val_loss < best_val_loss:
             out += colored(" ++", "green")
             best_val_loss = val_loss
-            best_params -= copy.deepcopy(classifier.state_dict())
+            best_params = copy.deepcopy(classifier.state_dict())
         else:
             out += colored(" --", "red")
         print(out)
@@ -85,11 +93,11 @@ def train_epoch(classifier, loader, optimizer, device, clip_max_norm=None):
     epoch_loss = []
     for theta, x in loader:
         theta, x = theta.to(device), x.to(device)
-        x = x.permute(1, 2, 0).float()
+        x = x.unsqueeze(1)
         optimizer.zero_grad()
-        probs = classifier(x)
+        output = classifier(x)
         labels = (theta[:, 0] != 0.0).float()
-        loss = F.binary_cross_entropy_with_logits(probs, labels.unsqueeze(0))
+        loss = F.binary_cross_entropy(output, labels.view(-1))
         epoch_loss.append(loss.item())
         loss.backward()
         if clip_max_norm is not None:
@@ -101,16 +109,14 @@ def train_epoch(classifier, loader, optimizer, device, clip_max_norm=None):
 
 def test_epoch(classifier, loader, device):
     classifier.eval()
-    epoch_loss = []
-    biased, pobabilities = [], []
+    epoch_loss, roc = [], []
     with torch.no_grad():
         for theta, x in loader:
             theta, x = theta.to(device), x.to(device)
-            x = x.permute(1, 2, 0)
-            probs = classifier(x)
+            x = x.unsqueeze(1)
+            output = classifier(x)
             labels = (theta[:, 0] != 0.0).float()
-            loss = F.binary_cross_entropy_with_logits(probs, labels.unsqueeze(0))
+            loss = F.binary_cross_entropy(output, labels.view(-1))
             epoch_loss.append(loss.item())
-    biased.extend(labels.cpu().numpy().tolist())
-    probabilities.extend(probs.cpu().numpy().tolist())
-    return np.mean(epoch_loss), roc_auc_score(biased, probabilities)
+            roc.append(roc_auc_score(labels.view(-1).cpu().numpy(), output.cpu().numpy()))
+    return np.mean(epoch_loss), np.mean(roc)
