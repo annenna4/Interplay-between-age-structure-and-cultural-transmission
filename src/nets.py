@@ -1,123 +1,66 @@
+from functools import partial
+
 import torch
 import torch.nn as nn
-
 import torch.nn.functional as F
+import tsai.all as tsai
 
 
-class Conv1dSamePadding(nn.Conv1d):
-    def forward(self, input):
-        return conv1d_same_padding(
-            input, self.weight, self.bias, self.stride, self.dilation, self.groups
-        )
+class ResNet(tsai.ResNet):
+    def __init__(self, c_in):
+        super().__init__(c_in, 1)
+        self.fc = nn.Identity()
+        self.output_size = 64 * 2  # hard coded in tsai...
 
 
-def conv1d_same_padding(input, weight, bias, stride, dilation, groups):
-    # stride and dilation are expected to be tuples.
-    kernel, dilation, stride = weight.size(2), dilation[0], stride[0]
-    l_out = l_in = input.size(2)
-    padding = ((l_out - 1) * stride) - l_in + (dilation * (kernel - 1)) + 1
-    if padding % 2 != 0:
-        input = F.pad(input, [0, 1])
-
-    return F.conv1d(
-        input=input,
-        weight=weight,
-        bias=bias,
-        stride=stride,
-        padding=padding // 2,
-        dilation=dilation,
-        groups=groups,
-    )
+class FCN(tsai.FCN):
+    def __init__(self, c_in, layers=(128, 256, 128), kss=(7, 5, 3)):
+        super().__init__(c_in, 1, layers, kss)
+        self.fc = nn.Identity()
+        self.output_size = layers[-1]
 
 
-class ConvBlock(nn.Module):
-    def __init__(
-        self, in_channels: int, out_channels: int, kernel_size: int, stride: int
-    ) -> None:
+class InceptionTime(tsai.InceptionTime):
+    def __init__(self, c_in, nf=32, nb_filters=None, **kwargs):
+        super().__init__(c_in, 1, nf, nb_filters, **kwargs)
+        self.fc = nn.Identity()
+        self.output_size = nf * 4  # hard-coded in tsai
+
+
+def make_mlp_layer(dropout, input_size, output_size):
+    mappings = [nn.ReLU(inplace=True)]
+    if dropout > 0:
+        mappings.append(nn.Dropout(dropout))
+    mappings.append(nn.Linear(input_size, output_size))
+    return nn.Sequential(*mappings)
+
+
+class MultiLayerPerceptron(nn.Module):
+    def __init__(self, input_size, layers=(128, 128, 128), dropout=0.0):
         super().__init__()
 
-        self.layers = nn.Sequential(
-            Conv1dSamePadding(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=kernel_size,
-                stride=stride,
-            ),
-            nn.BatchNorm1d(num_features=out_channels),
-            nn.ReLU(),
-        )
+        mappings = [nn.Linear(input_size, layers[0])]
+        for i in range(1, len(layers)):
+            mappings.append(make_mlp_layer(dropout, layers[i - 1], layers[i]))
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.layers(x)
-
-
-class FCN(nn.Module):
-    def __init__(self, in_channels: int, num_classes: int = 1) -> None:
-        super().__init__()
-
-        self.layers = nn.Sequential(
-            ConvBlock(in_channels, 128, 7, 1),
-            ConvBlock(128, 256, 5, 1),
-            ConvBlock(256, 128, 3, 1),
-        )
-        self.final = nn.Linear(128, num_classes)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.layers(x)
-        return self.final(x.mean(dim=-1))  # GAP
-
-
-class RNN(nn.Module):
-    def __init__(
-        self,
-        input_size,
-        hidden_size,
-        num_layers=1,
-        layer_dropout=0.0,
-        feature_dropout=0.0,
-        bidirectional=False,
-    ):
-        super().__init__()
-
-        self.rnn = nn.LSTM(
-            input_size,
-            hidden_size // (1 + bidirectional),
-            num_layers,
-            batch_first=True,
-            bidirectional=bidirectional,
-            dropout=(num_layers > 1) * layer_dropout,
-        )
-
-        self.feature_dropout = feature_dropout
+        mappings.append(nn.ReLU(inplace=True))
+        mappings.append(nn.Linear(layers[-1], 1))
+        self.mappings = nn.Sequential(*mappings)
 
     def forward(self, x):
-        x = torch.nn.functional.dropout(
-            x, p=self.feature_dropout, training=self.training
-        )
-        out, _ = self.rnn(x)
-        return out[:, -1:, ].view(-1) # TODO: check if correct
+        return self.mappings(x)
 
 
-class RNNFCN(nn.Module):
-    def __init__(
-        self,
-        input_size,
-        hidden_size,
-        num_layers=1,
-        layer_dropout=0.0,
-        feature_dropout=0.0,
-        bidirectional=False,
-    ):
+class TimeseriesClassifier(nn.Module):
+    def __init__(self, classifier, embedder=None):
         super().__init__()
-        self.fcn = FCN(1)
-        self.rnn = RNN(
-            input_size,
-            hidden_size,
-            num_layers=num_layers,
-            layer_dropout=layer_dropout,
-            feature_dropout=feature_dropout,
-            bidirectional=bidirectional,
-        )
+
+        self.embedder = embedder
+        self.classifier = classifier
 
     def forward(self, x):
-        return self.fcn(self.rnn(x).view(1, 1, -1))
+        if self.embedder is not None:
+            x = self.embedder(x)
+        logits = self.classifier(x)
+        likelihood = torch.sigmoid(logits)
+        return likelihood.view(-1)

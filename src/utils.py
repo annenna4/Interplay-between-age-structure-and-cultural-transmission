@@ -1,6 +1,27 @@
 import multiprocessing as mp
 import numpy as np
+import torch
 import tqdm
+
+
+class Constant:
+    def __init__(self, value):
+        self._value = value
+
+    def sample(self, sample_shape=torch.Size()):
+        return torch.ones(sample_shape) * self._value
+
+
+class IndependentPriors:
+    def __init__(self, *distributions):
+        self.distributions = distributions
+
+    def sample(self, sample_shape=torch.Size()):
+        return torch.stack(
+            [d.sample(sample_shape) for d in self.distributions],
+            int(len(sample_shape) > 0),
+        )
+
 
 def reindex_array(x):
     _, x = np.unique(x, return_inverse=True)
