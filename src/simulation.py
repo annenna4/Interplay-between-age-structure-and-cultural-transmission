@@ -32,7 +32,9 @@ class Simulator:
         self.summarize = summarize
 
     def __call__(self, theta):
-        beta, mu, p_death = theta.numpy()
+        if isinstance(theta, torch.Tensor):
+            theta = theta.numpy()
+        beta, mu, p_death = theta
         # Initialize the population with n traits equally distributed over the agents
         population = self.rng.choice(self.initial_traits, size=self.n_agents)
         # Randomly associate birth dates with each of the traits
@@ -56,8 +58,8 @@ class Simulator:
 
         # Following the burn-in period, we sample n populations.
         sample = np.zeros((self.timesteps, self.n_agents), dtype=np.int64)
-
         population = reindex_array(population)
+        n_traits = len(np.unique(population))
         birth_date = birth_date - birth_date.min()
         for timestep in tqdm.trange(
             self.timesteps, desc="Generating populations", disable=self.disable_pbar
@@ -74,7 +76,7 @@ class Simulator:
         sample = sample.T
 
         if self.summarize:
-            sample = HillNumbers(q_step=0.5)(sample.T)
+            sample = HillNumbers(q_step=0.5)(sample)
         return sample
 
     def _get_dynamics(self, beta, mu, p_death, population, birth_date, n_traits):
@@ -85,10 +87,12 @@ class Simulator:
         # Limit the copy pool if age window is specified
         if self.age_window is not None:
             age_low, age_high = self.age_window
-            copy_pool = copy_pool[
-                (birth_date > (timestep - age_low))
-                & (birth_date < (timestep + age_high))
-            ]
+            parents, offset = np.array([]), 0
+            while parents.sum() == 0:
+                parents = ((birth_date < (timestep - (age_low - offset)))
+                    & (birth_date > (timestep - (age_high + offset))))
+                offset += 1
+            copy_pool = copy_pool[parents]
         traits, counts = np.unique(population[copy_pool], return_counts=True)
         counts = counts ** (1 + beta)
         population[novel] = self.rng.choice(
@@ -98,5 +102,6 @@ class Simulator:
         innovators = (self.rng.random(self.n_agents) < mu) & novel
         n_innovations = innovators.sum()
         population[innovators] = np.arange(n_traits, n_traits + n_innovations)
-        birth_date[novel] = timestep
+        birth_date[novel] = timestep + 1
         return population, birth_date, n_traits + n_innovations, novel
+    

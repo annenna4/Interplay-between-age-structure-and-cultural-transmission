@@ -17,7 +17,6 @@ from simulation import Simulator
 import utils
 
 
-
 def simulate(theta, n_agents, timesteps, top_n, summarize):
     simulator = Simulator(
         n_agents,
@@ -27,7 +26,9 @@ def simulate(theta, n_agents, timesteps, top_n, summarize):
         summarize=summarize,
     )
     sample = simulator(theta)
-    return np.repeat(theta.numpy()[None, :], len(sample), axis=0), sample
+    if isinstance(theta, torch.Tensor):
+        theta = theta.numpy()
+    return np.repeat(theta[None, :], len(sample), axis=0), sample
 
 
 if __name__ == "__main__":
@@ -44,22 +45,22 @@ if __name__ == "__main__":
 
     prior = utils.IndependentPriors(
         Uniform(0.001, 0.01), # beta prior
-        Uniform(0.001, 0.01), # mu prior
-        Uniform(0.001, 0.1)   # p_death prior
+        Uniform(0.00001, 0.1), # mu prior
+        Uniform(0.1, 1.0)   # p_death prior
     )
 
     pool = utils.Parallel(args.workers, args.simulations)
     biased = np.random.random(args.simulations) < 0.5
     negative_bias = np.random.random(args.simulations) < 0.5
     for i in range(args.simulations):
-        theta = prior.sample()
+        theta = prior.sample().numpy()
         if not biased[i]:
             theta[0] = 0.0
         elif negative_bias[i]:
             theta[0] = -theta[0]
         pool.apply_async(
             simulate,
-            args=(theta, args.agents, args.timesteps, args.top_n, args.summarize),
+            args=(theta, args.agents, args.timesteps, args.top_n, args.summarize)
         )
     pool.join()
 

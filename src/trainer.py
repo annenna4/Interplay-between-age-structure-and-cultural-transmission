@@ -4,11 +4,12 @@ from termcolor import colored
 from typing import Type, Callable
 
 import numpy as np
+import tqdm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, f1_score
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
@@ -57,6 +58,7 @@ def train(
     )
 
     classifier = classifier.to(device)
+
     optimizer = torch.optim.Adam(classifier.parameters(), lr=learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min", patience=learning_patience, verbose=True
@@ -85,7 +87,7 @@ def train(
 
     classifier.load_state_dict(best_params)
     classifier.eval()
-    return classifier
+    return classifier, train_loader, val_loader
 
 
 def train_epoch(classifier, loader, optimizer, device, clip_max_norm=None):
@@ -93,11 +95,12 @@ def train_epoch(classifier, loader, optimizer, device, clip_max_norm=None):
     epoch_loss = []
     for theta, x in loader:
         theta, x = theta.to(device), x.to(device)
-        x = x.unsqueeze(1)
+        if x.dim() == 2:
+            x = x.unsqueeze(1)
         optimizer.zero_grad()
-        output = classifier(x)
+        output = classifier(x.float())
         labels = (theta[:, 0] != 0.0).float()
-        loss = F.binary_cross_entropy(output, labels.view(-1))
+        loss = F.binary_cross_entropy(output.view(-1), labels.view(-1))
         epoch_loss.append(loss.item())
         loss.backward()
         if clip_max_norm is not None:
@@ -113,10 +116,17 @@ def test_epoch(classifier, loader, device):
     with torch.no_grad():
         for theta, x in loader:
             theta, x = theta.to(device), x.to(device)
-            x = x.unsqueeze(1)
-            output = classifier(x)
+            if x.dim() == 2:
+                x = x.unsqueeze(1)
+            output = classifier(x.float())
             labels = (theta[:, 0] != 0.0).float()
-            loss = F.binary_cross_entropy(output, labels.view(-1))
+            loss = F.binary_cross_entropy(output.view(-1), labels.view(-1))
             epoch_loss.append(loss.item())
             roc.append(roc_auc_score(labels.view(-1).cpu().numpy(), output.cpu().numpy()))
     return np.mean(epoch_loss), np.mean(roc)
+
+
+def classify_example(x, classifier, device="cpu"):
+    classifier = classifier.to(device)
+    return classifier(x.unsqueeze(1))
+    

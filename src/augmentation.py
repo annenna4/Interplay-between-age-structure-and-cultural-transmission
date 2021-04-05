@@ -153,12 +153,11 @@ class HillNumbers(TimeseriesTransformer):
         super().__init__()
 
     def transform(self, x):
-        results = []
-        for t in x:
-            p = t[t > 0] / t.sum()
-            h = [self._transform(t, q, p) for q in self.q]
-            results.append(h)
-        return torch.FloatTensor(results)
+        if x.ndim > 1:
+            x = x[:, -1]  # only use final timestep
+        p = x[x > 0] / x.sum()
+        # return torch.FloatTensor([[self._transform(x, q, p) for q in self.q]])
+        return np.array([[self._transform(x, q, p) for q in self.q]])
 
     def _transform(self, x, q, p):
         return (

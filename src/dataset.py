@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 
 from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
 from torch.utils.data import Dataset, IterableDataset
 
 
@@ -12,7 +13,7 @@ class PresimulatedDataset(Dataset):
     def __init__(self, ids, theta, samples):
         self.dataset = torch.FloatTensor(samples)
         self.theta = torch.FloatTensor(theta)
-        self.ids = torch.LongTensor(ids)
+        self.ids = np.array(ids)
 
     @classmethod
     def load(cls, fname, transform=None):
@@ -37,9 +38,10 @@ class PresimulatedDataset(Dataset):
     def train_test_split(self, test_size=0.1):
         ids = np.unique(self.ids)
         train_ids, test_ids = train_test_split(ids, test_size=test_size, shuffle=True)
+        train_ids, test_ids = np.isin(self.ids, train_ids), np.isin(self.ids, test_ids)
         return (
-            PresimulatedDataset(self.ids[train_ids], self.theta[train_ids], self.dataset[train_ids]),
-            PresimulatedDataset(self.ids[test_ids], self.theta[test_ids], self.dataset[test_ids]),
+            PresimulatedDataset(*shuffle(self.ids[train_ids], self.theta[train_ids], self.dataset[train_ids])),
+            PresimulatedDataset(*shuffle(self.ids[test_ids], self.theta[test_ids], self.dataset[test_ids]))
         )
 
 
@@ -58,7 +60,7 @@ class SimulationDataset(Dataset):
         theta, sample = self.theta[i], self.simulator(self.theta[i])
         if self.transform is not None:
             sample = self.transform(sample)
-        return theta, sample.flatten()
+        return theta, sample
 
     def __len__(self):
         return self.num_simulations
@@ -81,7 +83,7 @@ class LazySimulationDataset(IterableDataset):
             sample = self.simulator(theta)
             if self.transform is not None:
                 sample = self.transform(sample)            
-            yield theta, sample.flatten()
+            yield theta, sample
 
     def __len__(self):
         return self.num_simulations
