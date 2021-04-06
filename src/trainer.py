@@ -48,13 +48,11 @@ def train(
         num_workers=num_workers,
         batch_size=batch_size,
         worker_init_fn=lazy_worker_init_fn,
-        # collate_fn=collate_timeseries
     )
     val_loader = DataLoader(
         val_data,
         num_workers=num_workers,
         batch_size=batch_size,
-        # collate_fn=collate_timeseries        
     )
 
     classifier = classifier.to(device)

@@ -31,7 +31,9 @@ class Simulator:
         self.disable_pbar = disable_pbar
         self.summarize = summarize
 
-    def __call__(self, theta):
+    def __call__(self, theta, random_state=None):
+        if random_state is not None:
+            self.rng = check_random_state(random_state)
         if isinstance(theta, torch.Tensor):
             theta = theta.numpy()
         beta, mu, p_death = theta

@@ -1,6 +1,3 @@
-# NOTE: running with many cores might lead to a "too many files open" error. Increase ulimit
-#       to prevent that from happening.
-
 import argparse
 import json
 import multiprocessing as mp
@@ -10,9 +7,8 @@ from datetime import datetime
 
 import numpy as np
 import torch
-from torch.distributions import Uniform
+import torch.distributions as dists
 
-from augmentation import Normalizer
 from simulation import Simulator
 import utils
 
@@ -44,20 +40,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     prior = utils.IndependentPriors(
-        Uniform(0.001, 0.01), # beta prior
-        Uniform(0.00001, 0.1), # mu prior
-        Uniform(0.1, 1.0)   # p_death prior
+        dists.Normal(0.0, 0.1),     # beta prior
+        dists.Uniform(0.0001, 0.1), # mu prior
+        dists.Uniform(0.1, 0.5)     # p_death prior
     )
 
     pool = utils.Parallel(args.workers, args.simulations)
     biased = np.random.random(args.simulations) < 0.5
-    negative_bias = np.random.random(args.simulations) < 0.5
     for i in range(args.simulations):
         theta = prior.sample().numpy()
         if not biased[i]:
             theta[0] = 0.0
-        elif negative_bias[i]:
-            theta[0] = -theta[0]
         pool.apply_async(
             simulate,
             args=(theta, args.agents, args.timesteps, args.top_n, args.summarize)
@@ -71,9 +64,12 @@ if __name__ == "__main__":
     now = datetime.now().strftime("%Y%m%d%H%M%S")
     if not os.path.exists("../data"):
         os.mkdir("../data")
-    np.save(f"../data/{now}.theta.npy", theta)
-    np.save(f"../data/{now}.samples.npy", samples)
-    np.save(f"../data/{now}.ids.npy", ids)
+    np.savez_compressed(
+        f"../data/{now}.npz",
+        theta=theta.astype(np.float64),
+        samples=samples,
+        ids=ids.astype(np.int64)
+    )
 
     with open(f"../data/{now}.params.json", "w") as fp:
         json.dump(args.__dict__, fp)

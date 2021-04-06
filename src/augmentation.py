@@ -81,10 +81,12 @@ class Randomizer(TimeseriesTransformer):
 
 
 class Normalizer(TimeseriesTransformer):
-    def __init__(self):
+    def __init__(self, eps: float = 1e-8):
         super().__init__()
+        self.eps = eps
 
     def transform(self, x):
+        x = x + self.eps
         return x / x.sum(0)
 
     

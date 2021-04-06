@@ -17,9 +17,9 @@ class PresimulatedDataset(Dataset):
 
     @classmethod
     def load(cls, fname, transform=None):
-        ids = np.load(f"{fname}.ids.npy")
-        theta = np.load(f"{fname}.theta.npy")
-        samples = np.load(f"{fname}.samples.npy").astype(np.double)
+        data = np.load(fname)
+        theta, samples, ids = data["theta"], data["samples"], data["ids"]
+        samples = samples.astype(np.float64)
         if transform is not None:
             for id in np.unique(ids):
                 idx = ids == id
@@ -40,8 +40,8 @@ class PresimulatedDataset(Dataset):
         train_ids, test_ids = train_test_split(ids, test_size=test_size, shuffle=True)
         train_ids, test_ids = np.isin(self.ids, train_ids), np.isin(self.ids, test_ids)
         return (
-            PresimulatedDataset(*shuffle(self.ids[train_ids], self.theta[train_ids], self.dataset[train_ids])),
-            PresimulatedDataset(*shuffle(self.ids[test_ids], self.theta[test_ids], self.dataset[test_ids]))
+            PresimulatedDataset(self.ids[train_ids], self.theta[train_ids], self.dataset[train_ids]),
+            PresimulatedDataset(self.ids[test_ids], self.theta[test_ids], self.dataset[test_ids])
         )
 
 
