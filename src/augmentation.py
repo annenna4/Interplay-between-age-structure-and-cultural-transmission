@@ -56,6 +56,14 @@ class Rescaler(TimeseriesTransformer):
         )
 
 
+class Evenness(TimeseriesTransformer):
+    def transform(self, x):
+        return np.vstack([self._evenness_score(v) for v in x])
+
+    def _evenness_score(self, x):
+        return (x - 1) / (x[0] - 1)
+
+
 class Cutter(TimeseriesTransformer):
     def __init__(self, prior: Distribution, random_state: int = None):
         if isinstance(prior, float):
