@@ -1,4 +1,5 @@
 import collections
+import math
 
 import numpy as np
 import torch
@@ -14,21 +15,23 @@ class Simulator:
         n_agents,
         timesteps=10_000,
         warmup=1000,
-        age_window=None,
+        restricted_age_window=False,
         initial_traits=2,
         top_n=0,
         random_state=None,
         disable_pbar=False,
+        q_step=0.5,
         summarize=False,
     ):
         self.n_agents = n_agents
         self.timesteps = timesteps
         self.warmup = warmup
-        self.age_window = age_window
+        self.restricted_age_window = restricted_age_window
         self.initial_traits = initial_traits
         self.top_n = top_n
         self.rng = check_random_state(random_state)
         self.disable_pbar = disable_pbar
+        self.q_step = q_step
         self.summarize = summarize
 
     def __call__(self, theta, random_state=None):
@@ -36,7 +39,7 @@ class Simulator:
             self.rng = check_random_state(random_state)
         if isinstance(theta, torch.Tensor):
             theta = theta.numpy()
-        beta, mu, p_death = theta
+        beta, mu, p_death, eta = theta
         # Initialize the population with n traits equally distributed over the agents
         population = self.rng.choice(self.initial_traits, size=self.n_agents)
         # Randomly associate birth dates with each of the traits
@@ -51,11 +54,12 @@ class Simulator:
         #             beta, mu, p_death, population, birth_date, n_traits
         #         )
         #         pbar.update()
+        init = birth_date.max()
         for timestep in tqdm.trange(
-            self.warmup, desc="Warming up", disable=self.disable_pbar
+                init, self.warmup + init, desc="Warming up", disable=self.disable_pbar
         ):
             population, birth_date, n_traits, novel = self._get_dynamics(
-                beta, mu, p_death, population, birth_date, n_traits
+                timestep, beta, mu, p_death, eta, population, birth_date, n_traits
             )
 
         # Following the burn-in period, we sample n populations.
@@ -63,13 +67,14 @@ class Simulator:
         population = reindex_array(population)
         n_traits = len(np.unique(population))
         birth_date = birth_date - birth_date.min()
+        init = birth_date.max()
         for timestep in tqdm.trange(
-            self.timesteps, desc="Generating populations", disable=self.disable_pbar
+                init, self.timesteps + init, desc="Generating populations", disable=self.disable_pbar
         ):
             population, birth_date, n_traits, novel = self._get_dynamics(
-                beta, mu, p_death, population, birth_date, n_traits
+                timestep, beta, mu, p_death, eta, population, birth_date, n_traits
             )
-            sample[timestep] = population
+            sample[timestep - init] = population
 
         sample = bincount2d(sample)
 
@@ -78,17 +83,17 @@ class Simulator:
         sample = sample.T
 
         if self.summarize:
-            sample = HillNumbers(q_step=0.5)(sample)
+            sample = HillNumbers(q_step=self.q_step)(sample)
         return sample
 
-    def _get_dynamics(self, beta, mu, p_death, population, birth_date, n_traits):
-        timestep = birth_date.max()
-        novel = self.rng.random(self.n_agents) < p_death
+    def _get_dynamics(self, timestep, beta, mu, p_death, eta, population, birth_date, n_traits):
+        novel = self.rng.binomial(1, p_death, self.n_agents).astype(bool)
+        # novel = self.rng.random(self.n_agents) < p_death
 
         copy_pool = np.arange(self.n_agents)
         # Limit the copy pool if age window is specified
-        if self.age_window is not None:
-            age_low, age_high = self.age_window
+        if self.restricted_age_window:
+            age_low, age_high = 0, int(math.ceil(eta * birth_date.max()))  # self.age_window
             parents, offset = np.array([]), 0
             while parents.sum() == 0:
                 parents = ((birth_date < (timestep - (age_low - offset)))
@@ -104,6 +109,6 @@ class Simulator:
         innovators = (self.rng.random(self.n_agents) < mu) & novel
         n_innovations = innovators.sum()
         population[innovators] = np.arange(n_traits, n_traits + n_innovations)
-        birth_date[novel] = timestep + 1
+        birth_date[novel] = timestep # + 1
         return population, birth_date, n_traits + n_innovations, novel
     
