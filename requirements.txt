@@ -5,4 +5,4 @@ torchvision==0.8.2
 tqdm==4.59
 termcolor==1.1.0
 tsai==0.2.17
-sklearn
+sklearn==0.24.1
