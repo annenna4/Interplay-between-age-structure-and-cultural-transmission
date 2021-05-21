@@ -1,5 +1,7 @@
+import itertools
 import multiprocessing as mp
 import numbers
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -23,6 +25,21 @@ class IndependentPriors:
             [d.sample(sample_shape) for d in self.distributions],
             int(len(sample_shape) > 0),
         )
+
+
+class ParamSweep:
+    def __init__(self, *params, num_samples=100):
+        self._num_simulations = np.prod([len(p) for p in params]) * num_samples
+        self._num_samples = num_samples
+        self.params = params
+
+    def __iter__(self):
+        for _ in range(self._num_samples):
+            for params in itertools.product(*self.params):
+                yield np.array(params)
+
+    def __len__(self):
+        return self._num_simulations
 
 
 def reindex_array(x):
