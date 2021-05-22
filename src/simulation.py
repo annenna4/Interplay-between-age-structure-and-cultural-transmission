@@ -20,7 +20,7 @@ class Simulator:
         top_n=0,
         random_state=None,
         disable_pbar=False,
-        q_step=0.5,
+        q_step=0.25,
         summarize=False,
     ):
         self.n_agents = n_agents
