@@ -21,7 +21,7 @@ class Simulator:
         random_state=None,
         disable_pbar=False,
         q_step=0.25,
-        summarize=False,
+        summarize=None,
     ):
         self.n_agents = n_agents
         self.timesteps = timesteps
@@ -66,8 +66,8 @@ class Simulator:
         sample = np.zeros((self.timesteps, self.n_agents), dtype=np.int64)
         population = reindex_array(population)
         n_traits = len(np.unique(population))
-        birth_date = birth_date - birth_date.min()
-        init = birth_date.max()
+        birth_date = birth_date - (birth_date.min() - 1)
+        init = birth_date.max() + 1
         for timestep in tqdm.trange(
                 init, self.timesteps + init, desc="Generating populations", disable=self.disable_pbar
         ):
@@ -82,18 +82,19 @@ class Simulator:
             sample = sample[:, sample.sum(0).argsort()[-self.top_n :]]
         sample = sample.T
 
-        if self.summarize:
+        if self.summarize == "hill":
             sample = HillNumbers(q_step=self.q_step)(sample)
+        elif self.summarize == "count":
+            sample = sample[:, -1]
+            sample = sample[sample > 0][:, None].T
         return sample
 
     def _get_dynamics(self, timestep, beta, mu, p_death, eta, population, birth_date, n_traits):
         novel = self.rng.binomial(1, p_death, self.n_agents).astype(bool)
-        # novel = self.rng.random(self.n_agents) < p_death
-
         copy_pool = np.arange(self.n_agents)
         # Limit the copy pool if age window is specified
         if self.restricted_age_window:
-            age_low, age_high = 0, int(math.ceil(eta * birth_date.max()))  # self.age_window
+            age_low, age_high = 0, eta
             parents, offset = np.array([]), 0
             while parents.sum() == 0:
                 parents = ((birth_date < (timestep - (age_low - offset)))
@@ -106,8 +107,9 @@ class Simulator:
             traits, novel.sum(), p=counts / counts.sum()
         )
 
-        innovators = (self.rng.random(self.n_agents) < mu) & novel
-        n_innovations = innovators.sum()
+        # innovators = (self.rng.random(self.n_agents) < mu) & novel
+        innovators = np.where(novel)[0][self.rng.random(novel.sum()) < mu]
+        n_innovations = len(innovators) # innovators.sum()
         population[innovators] = np.arange(n_traits, n_traits + n_innovations)
         birth_date[novel] = timestep # + 1
         return population, birth_date, n_traits + n_innovations, novel
