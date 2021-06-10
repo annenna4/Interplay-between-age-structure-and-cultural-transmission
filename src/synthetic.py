@@ -13,9 +13,10 @@ from simulation import Simulator
 import utils
 
 
-def simulate(theta, n_agents, timesteps, top_n, summarize):
+def simulate(theta, n_agents, warmup, timesteps, top_n, summarize):
     simulator = Simulator(
         n_agents,
+        warmup=warmup,
         timesteps=timesteps,
         top_n=top_n,
         restricted_age_window=True,
@@ -37,11 +38,11 @@ if __name__ == "__main__":
     parser.add_argument("--beta", nargs=2, type=float, default=(0.0, 0.01))
     parser.add_argument("--mu", nargs=2, type=float, default=(0.0001, 0.1))
     parser.add_argument("--p_death", nargs=2, type=float, default=(0.1, 1.0))
-    parser.add_argument("--age_max", nargs=2, type=float, default=(0.001, 1.0))
+    parser.add_argument("--age_max", nargs=2, type=int, default=(1, 21))
     parser.add_argument("-b", "--burn_in", type=int, default=1000)
     parser.add_argument("-p", "--top_n", type=int, default=0)
     parser.add_argument("--parameter_sweep", action="store_true")
-    parser.add_argument("-d", "--summarize", action="store_true")
+    parser.add_argument("-d", "--summarize", choices=["hill", "count"])
 
     args = parser.parse_args()
 
@@ -50,14 +51,14 @@ if __name__ == "__main__":
             dists.Normal(*args.beta),         # beta prior
             dists.Uniform(*args.mu),          # mu prior
             dists.Uniform(*args.p_death),     # p_death prior
-            dists.Uniform(*args.age_max),     # threshold_high prior
+            utils.Randint(*args.age_max),     # threshold_high prior
         )
     else:
         prior = utils.ParamSweep(
-            np.linspace(*args.beta, num=51),
-            [0.01],
-            np.linspace(*args.p_death, num=51),
-            [0.001, 0.01, 1.0],
+            np.linspace(*args.beta, num=16),
+            [0.0005],
+            [0.02, 0.1],
+            [1, 5, 10, 20],
             num_samples=100
         )
 
@@ -70,7 +71,7 @@ if __name__ == "__main__":
                 theta[0] = 0.0
             pool.apply_async(
                 simulate,
-                args=(theta, args.agents, args.timesteps, args.top_n, args.summarize)
+                args=(theta, args.agents, args.burn_in, args.timesteps, args.top_n, args.summarize)
             )
         pool.join()
     else:
@@ -78,12 +79,14 @@ if __name__ == "__main__":
         for theta in prior:
             pool.apply_async(
                 simulate,
-                args=(theta, args.agents, args.timesteps, args.top_n, args.summarize)
+                args=(theta, args.agents, args.burn_in, args.timesteps, args.top_n, args.summarize)
             )
         pool.join()
 
     theta, samples = zip(*pool.result())
     ids = np.array([[i] * len(sample) for i, sample in enumerate(samples)])
+    max_len = max(len(sample[0]) for sample in samples)
+    samples = [np.pad(sample[0], (0, max_len - len(sample[0])), 'constant') for sample in samples]
     theta, samples, ids = np.vstack(theta), np.vstack(samples), np.hstack(ids)
 
     now = datetime.now().strftime("%Y%m%d%H%M%S")

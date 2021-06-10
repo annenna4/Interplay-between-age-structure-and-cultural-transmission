@@ -20,10 +20,13 @@ class PresimulatedDataset(Dataset):
         data = np.load(fname)
         theta, samples, ids = data["theta"], data["samples"], data["ids"]
         samples = samples.astype(np.float64)
+        transformed = []
         if transform is not None:
             for id in np.unique(ids):
                 idx = ids == id
-                samples[idx] = transform(samples[idx])
+                transformed.append(transform(samples[idx]))
+
+            samples = np.vstack(transformed)
         return PresimulatedDataset(ids, theta, samples)
 
     def __getitem__(self, i):

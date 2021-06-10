@@ -5,7 +5,19 @@ import numbers
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.distributions as dists
 import tqdm
+
+
+class Randint:
+    def __init__(self, low, high):
+        probs = torch.ones(high)
+        probs[:low] = 0
+        probs = probs / probs.sum()
+        self.dist = dists.Categorical(probs)
+
+    def sample(self, sample_shape=torch.Size()):
+        return self.dist.sample(sample_shape)
 
 
 class Constant:
