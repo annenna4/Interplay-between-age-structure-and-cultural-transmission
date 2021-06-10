@@ -42,6 +42,19 @@ class TimeseriesTransformer:
         raise NotImplementedError
 
 
+class Sampler(TimeseriesTransformer):
+    def __init__(self, n, random_state: int = None):
+        self.n = n
+        self.rng = utils.check_random_state(random_state)
+        super().__init__()
+
+    def transform(self, x):
+        return np.array([
+            np.bincount(self.rng.choice(v.shape[0], self.n, p=v / v.sum()), minlength=x.shape[1])
+            for v in x
+        ])
+
+    
 class Rescaler(TimeseriesTransformer):
     def __init__(self, timesteps: int = None):
         self.timesteps = timesteps
@@ -162,14 +175,14 @@ class HillNumbers(TimeseriesTransformer):
         self.q = np.arange(min_q, max_q + q_step, step=q_step)
         super().__init__()
 
-    def transform(self, x):
-        if x.ndim > 1:
-            x = x[:, -1]  # only use final timestep
-        p = x[x > 0] / x.sum()
-        # return torch.FloatTensor([[self._transform(x, q, p) for q in self.q]])
-        return np.array([[self._transform(x, q, p) for q in self.q]])
+    def transform(self, X):
+        return np.array([self._transform(x) for x in X])
 
-    def _transform(self, x, q, p):
+    def _transform(self, x):
+        p = x[x > 0] / x.sum()
+        return np.array([self._hn(x, q, p) for q in self.q])
+
+    def _hn(self, x, q, p):
         return (
             (x > 0).sum()
             if q == 0
