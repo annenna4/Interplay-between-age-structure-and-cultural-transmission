@@ -2,7 +2,8 @@ import logging
 import numpy as np
 
 import torch
-from torch.distributions import Distribution, Categorical
+import torch.nn.functional as F
+from torch.distributions import Distribution, Categorical, Uniform
 
 import utils
 
@@ -18,9 +19,9 @@ class Compose:
 
     def __repr__(self):
         format_string = self.__class__.__name__ + '('
-        for trans in self.transformers:
+        for transformer in self.transformers:
             format_string += '\n'
-            format_string += '    {0}'.format(t)
+            format_string += '    {0}'.format(transformer)
         format_string += '\n)'
         return format_string
 
@@ -170,6 +171,16 @@ class Padder(TimeseriesTransformer):
         return F.pad(x, (0, self.timesteps - x.shape[1]))
 
 
+def hill_number(x, q, p):
+    return (
+        (x > 0).sum()
+        if q == 0
+        else np.exp(-np.sum(p * np.log(p)))
+        if q == 1
+        else np.exp(1 / (1 - q) * np.log(np.sum(p ** q)))
+    )
+
+
 class HillNumbers(TimeseriesTransformer):
     def __init__(self, min_q=0, max_q=3, q_step=1):
         self.q = np.arange(min_q, max_q + q_step, step=q_step)
@@ -183,10 +194,4 @@ class HillNumbers(TimeseriesTransformer):
         return np.array([self._hn(x, q, p) for q in self.q])
 
     def _hn(self, x, q, p):
-        return (
-            (x > 0).sum()
-            if q == 0
-            else np.exp(-np.sum(p * np.log(p)))
-            if q == 1
-            else np.exp(1 / (1 - q) * np.log(np.sum(p ** q)))
-        )
+        return hill_number(x, q, p)
