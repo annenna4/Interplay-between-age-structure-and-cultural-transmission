@@ -43,18 +43,22 @@ class DiversityEarlyStopping(EarlyStopping):
         args = model.input_args
         args["initial_traits"] = int(model.n_agents / 10)
         self.alternative_model = simulation.Simulator(**args)
+        self.log["homogeneous"] = []
+        self.log["heterogeneous"] = []
         if verbose:
             from jupyterplot import ProgressPlot
             self.pp = ProgressPlot(y_lim=[0, 40], line_names=["homogeneous population", "heterogeneous population"])
 
     def __call__(self):
         self.alternative_model.step()
-        return False if not self.model.timestep % 100 == 0 else self._criterion()
+        return False if not self.model.timestep % 10 == 0 else self._criterion()
 
     def _criterion(self):
         Qa, Qb = self.diversity(self.model), self.diversity(self.alternative_model)
-        self.pp.update([[Qa, Qb]])
-        self.log[self.model.timestep] = {"homogeneous": Qa, "heterogeneous": Qb}
+        if self.verbose:
+            self.pp.update([[Qa, Qb]])
+        self.log["homogeneous"].append(Qa)
+        self.log["heterogeneous"].append(Qb)
         return Qa > Qb
 
     def diversity(self, model: simulation.Simulator):

@@ -49,15 +49,15 @@ class Simulator:
         self.n_traits = len(np.unique(self.population))
         self.timestep = self.birth_date.max()
 
-
     def fit(self):
         self.earlystop = earlystopping.EARLYSTOPPERS[self.earlystopper](
-            self, warmup=self.warmup_iterations, diversity_order=self.diversity_order, verbose=True)
+            self, warmup=self.warmup_iterations, diversity_order=self.diversity_order, verbose=False)
 
         with tqdm.tqdm(desc="Burn-in period", disable=self.disable_pbar) as pbar:
             while not self.earlystop(): 
                 self.step()
                 pbar.update()
+        return self
 
     def sample(self, timesteps=1):
         sample = np.zeros((timesteps, self.n_agents), dtype=np.int64)
@@ -71,16 +71,6 @@ class Simulator:
             sample[timestep - init] = self.population
 
         sample = utils.bincount2d(sample)
-
-        if self.top_n > 0:
-            sample = sample[:, sample.sum(0).argsort()[-self.top_n :]]
-        sample = sample.T
-
-        if self.summarize == "hill":
-            sample = augmentation.HillNumbers(q_step=self.q_step)(sample)
-        elif self.summarize == "count":
-            sample = sample[:, -1]
-            sample = sample[sample > 0][:, None].T
         return sample
 
     def step(self):
