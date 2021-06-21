@@ -1,5 +1,6 @@
 import collections
 import math
+import json
 
 import numpy as np
 import torch
@@ -18,12 +19,13 @@ class Simulator:
         mu: float = 0.0005,
         p_death: float = 0.1,
         eta: int = 10,
-        earlystopper: str = "turnover",
+        earlystopper: str = "diversity",
         initial_traits: int = 2,
         random_state: int = None,
         disable_pbar: bool = False,
         diversity_order: float = 3.0,
         warmup_iterations: int = 10_000,
+        poll_interval: int = 1,
         q_step: float = 0.25,
     ):
         self.n_agents = n_agents
@@ -37,6 +39,7 @@ class Simulator:
         self.earlystopper = earlystopper
         self.diversity_order = diversity_order
         self.warmup_iterations = warmup_iterations
+        self.poll_interval = poll_interval
         self.q_step = q_step
 
         self._input_args = utils.get_arguments()
@@ -51,10 +54,15 @@ class Simulator:
 
     def fit(self):
         self.earlystop = earlystopping.EARLYSTOPPERS[self.earlystopper](
-            self, warmup=self.warmup_iterations, diversity_order=self.diversity_order, verbose=False)
+            self,
+            warmup=self.warmup_iterations,
+            diversity_order=self.diversity_order,
+            poll_interval=self.poll_interval,
+            verbose=False,
+        )
 
         with tqdm.tqdm(desc="Burn-in period", disable=self.disable_pbar) as pbar:
-            while not self.earlystop(): 
+            while not self.earlystop():
                 self.step()
                 pbar.update()
         return self
@@ -66,7 +74,11 @@ class Simulator:
         self.birth_date = self.birth_date - (self.birth_date.min() - 1)
         init = self.birth_date.max() + 1
         for timestep in tqdm.trange(
-            init, timesteps + init, desc="Generating populations", disable=self.disable_pbar):
+            init,
+            timesteps + init,
+            desc="Generating populations",
+            disable=self.disable_pbar,
+        ):
             self.step()
             sample[timestep - init] = self.population
 
@@ -81,8 +93,9 @@ class Simulator:
             age_low, age_high = 0, self.eta
             parents, offset = np.array([]), 0
             while parents.sum() == 0:
-                parents = ((self.birth_date < (self.timestep - (age_low - offset)))
-                    & (self.birth_date > (self.timestep - (age_high + offset))))
+                parents = (self.birth_date < (self.timestep - (age_low - offset))) & (
+                    self.birth_date > (self.timestep - (age_high + offset))
+                )
                 offset += 1
             copy_pool = copy_pool[parents]
         traits, counts = np.unique(self.population[copy_pool], return_counts=True)
@@ -93,12 +106,28 @@ class Simulator:
 
         innovators = np.where(novel)[0][self.rng.random(novel.sum()) < self.mu]
         n_innovations = len(innovators)
-        self.population[innovators] = np.arange(self.n_traits, self.n_traits + n_innovations)
+        self.population[innovators] = np.arange(
+            self.n_traits, self.n_traits + n_innovations
+        )
         self.n_traits = self.n_traits + n_innovations
-        self.birth_date[novel] = self.timestep # + 1
+        self.birth_date[novel] = self.timestep  # + 1
         self.timestep += 1
+
+    def save(self, filepath: str):
+        if not filepath.endswith(".json"):
+            filepath += ".json"
+        with open(filepath, "w") as fp:
+            json.dump(
+                {
+                    "population": self.population.list(),
+                    "n_traits": self.n_traits,
+                    "birth_date": self.birth_date.list(),
+                    "params": self.input_args,
+                    "burnin-step": self.timestep,
+                },
+                fp,
+            )
 
     @property
     def input_args(self):
         return {k: v for k, v in self._input_args.items()}
-
