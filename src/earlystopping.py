@@ -4,6 +4,7 @@ import augmentation
 import simulation
 import utils
 
+
 class EarlyStopping:
     def __init__(self, model: simulation.Simulator, verbose=False, **kwargs):
         self.model = model
@@ -12,7 +13,7 @@ class EarlyStopping:
 
     def __call__(self):
         return self._criterion()
-        
+
     def _criterion(self) -> bool:
         raise NotImplementedError
 
@@ -26,7 +27,9 @@ class TurnoverEarlyStopping(EarlyStopping):
 
 
 class MaxIterEarlyStopping(EarlyStopping):
-    def __init__(self, model: simulation.Simulator, warmup=10_000, verbose=False, **kwargs):
+    def __init__(
+        self, model: simulation.Simulator, warmup=10_000, verbose=False, **kwargs
+    ):
         self.model = model
         self.warmup = warmup
         super().__init__(model=model, verbose=verbose)
@@ -37,28 +40,34 @@ class MaxIterEarlyStopping(EarlyStopping):
 
 
 class DiversityEarlyStopping(EarlyStopping):
-    def __init__(self, model: simulation.Simulator, diversity_order=3.0, verbose=False, **kwargs):
+    def __init__(
+        self,
+        model: simulation.Simulator,
+        diversity_order=3.0,
+        poll_interval=1,
+        verbose=False,
+        **kwargs,
+    ):
         super().__init__(model=model, verbose=verbose)
         self.diversity_order = diversity_order
+        self.poll_interval = poll_interval
         args = model.input_args
         args["initial_traits"] = int(model.n_agents / 10)
         self.alternative_model = simulation.Simulator(**args)
-        self.log["homogeneous"] = []
-        self.log["heterogeneous"] = []
-        if verbose:
-            from jupyterplot import ProgressPlot
-            self.pp = ProgressPlot(y_lim=[0, 40], line_names=["homogeneous population", "heterogeneous population"])
 
     def __call__(self):
         self.alternative_model.step()
-        return False if not self.model.timestep % 10 == 0 else self._criterion()
+        return (
+            False
+            if not self.model.timestep % self.poll_interval == 0
+            else self._criterion()
+        )
 
     def _criterion(self):
         Qa, Qb = self.diversity(self.model), self.diversity(self.alternative_model)
         if self.verbose:
             self.pp.update([[Qa, Qb]])
-        self.log["homogeneous"].append(Qa)
-        self.log["heterogeneous"].append(Qb)
+        self.log.append({"homogeneous": Qa, "heterogeneous": Qb})
         return Qa > Qb
 
     def diversity(self, model: simulation.Simulator):
@@ -68,7 +77,7 @@ class DiversityEarlyStopping(EarlyStopping):
 
 
 EARLYSTOPPERS = {
-    'turnover': TurnoverEarlyStopping,
-    'max_iter': MaxIterEarlyStopping,
-    'diversity': DiversityEarlyStopping
+    "turnover": TurnoverEarlyStopping,
+    "max_iter": MaxIterEarlyStopping,
+    "diversity": DiversityEarlyStopping,
 }
