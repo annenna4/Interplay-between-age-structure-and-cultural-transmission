@@ -9,7 +9,7 @@ class EarlyStopping:
     def __init__(self, model: simulation.Simulator, verbose=False, **kwargs):
         self.model = model
         self.verbose = verbose
-        self.log = {}
+        self.log = []
 
     def __call__(self):
         return self._criterion()
