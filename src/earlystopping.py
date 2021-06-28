@@ -45,11 +45,13 @@ class DiversityEarlyStopping(EarlyStopping):
         model: simulation.Simulator,
         diversity_order=3.0,
         poll_interval=1,
+        minimum_timesteps=1,
         verbose=False,
         **kwargs,
     ):
         super().__init__(model=model, verbose=verbose)
         self.diversity_order = diversity_order
+        self.minimum_timesteps = minimum_timesteps
         self.poll_interval = poll_interval
         args = model.input_args
         args["initial_traits"] = int(model.n_agents / 10)
@@ -68,7 +70,7 @@ class DiversityEarlyStopping(EarlyStopping):
         if self.verbose:
             self.pp.update([[Qa, Qb]])
         self.log.append({"homogeneous": Qa, "heterogeneous": Qb})
-        return Qa > Qb
+        return False if self.model.timestep < self.minimum_timesteps else Qa > Qb
 
     def diversity(self, model: simulation.Simulator):
         x = np.bincount(utils.reindex_array(model.population))

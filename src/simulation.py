@@ -1,12 +1,8 @@
-import collections
-import math
 import json
 
 import numpy as np
-import torch
 import tqdm
 
-import augmentation
 import earlystopping
 import utils
 
@@ -23,9 +19,10 @@ class Simulator:
         initial_traits: int = 2,
         random_state: int = None,
         disable_pbar: bool = False,
-        diversity_order: float = 3.0,
+        diversity_order: float = 5.0,
         warmup_iterations: int = 10_000,
-        poll_interval: int = 1,
+        minimum_timesteps: int = 1,
+        poll_interval: int = 100,
         q_step: float = 0.25,
     ):
         self.n_agents = n_agents
@@ -39,6 +36,7 @@ class Simulator:
         self.earlystopper = earlystopper
         self.diversity_order = diversity_order
         self.warmup_iterations = warmup_iterations
+        self.minimum_timesteps = minimum_timesteps
         self.poll_interval = poll_interval
         self.q_step = q_step
 
@@ -57,6 +55,7 @@ class Simulator:
             self,
             warmup=self.warmup_iterations,
             diversity_order=self.diversity_order,
+            minimum_timesteps=self.minimum_timesteps,
             poll_interval=self.poll_interval,
             verbose=False,
         )
@@ -104,29 +103,42 @@ class Simulator:
             traits, novel.sum(), p=counts / counts.sum()
         )
 
-        innovators = np.where(novel)[0][self.rng.random(novel.sum()) < self.mu]
+        innovators = np.flatnonzero(novel)[self.rng.random(novel.sum()) < self.mu]
         n_innovations = len(innovators)
         self.population[innovators] = np.arange(
             self.n_traits, self.n_traits + n_innovations
         )
         self.n_traits = self.n_traits + n_innovations
-        self.birth_date[novel] = self.timestep  # + 1
+        self.birth_date[novel] = self.timestep
         self.timestep += 1
+
+    def to_dict(self):
+        return (
+            {
+                "population": self.population.list(),
+                "n_traits": self.n_traits,
+                "birth_date": self.birth_date.list(),
+                "params": self.input_args,
+                "burnin-step": self.timestep,
+            },
+        )
 
     def save(self, filepath: str):
         if not filepath.endswith(".json"):
             filepath += ".json"
         with open(filepath, "w") as fp:
-            json.dump(
-                {
-                    "population": self.population.list(),
-                    "n_traits": self.n_traits,
-                    "birth_date": self.birth_date.list(),
-                    "params": self.input_args,
-                    "burnin-step": self.timestep,
-                },
-                fp,
-            )
+            json.dump(self.to_dict(), fp)
+
+    @classmethod
+    def load(cls, filepath: str):
+        with open(filepath) as fp:
+            data = json.load(fp)
+        model = Simulator(**data["params"])
+        model.population = np.array(data["population"])
+        model.n_traits = data["n_traits"]
+        model.birth_date = data["birth_date"]
+        model.timestep = data["timestep"]
+        return model
 
     @property
     def input_args(self):
