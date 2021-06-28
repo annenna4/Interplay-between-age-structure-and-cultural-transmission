@@ -1,116 +1,133 @@
 import collections
 import math
+import json
 
 import numpy as np
 import torch
 import tqdm
 
-from augmentation import TimeseriesTransformer, HillNumbers
-from utils import reindex_array, check_random_state, bincount2d
+import augmentation
+import earlystopping
+import utils
 
 
 class Simulator:
     def __init__(
         self,
-        n_agents,
-        timesteps=10_000,
-        warmup=1000,
-        restricted_age_window=False,
-        initial_traits=2,
-        top_n=0,
-        random_state=None,
-        disable_pbar=False,
-        q_step=0.25,
-        summarize=None,
+        n_agents: int = 100_000,
+        beta: float = 0.0,
+        mu: float = 0.0005,
+        p_death: float = 0.1,
+        eta: int = 10,
+        earlystopper: str = "diversity",
+        initial_traits: int = 2,
+        random_state: int = None,
+        disable_pbar: bool = False,
+        diversity_order: float = 3.0,
+        warmup_iterations: int = 10_000,
+        poll_interval: int = 1,
+        q_step: float = 0.25,
     ):
         self.n_agents = n_agents
-        self.timesteps = timesteps
-        self.warmup = warmup
-        self.restricted_age_window = restricted_age_window
+        self.beta = beta
+        self.mu = mu
+        self.p_death = p_death
+        self.eta = eta
         self.initial_traits = initial_traits
-        self.top_n = top_n
-        self.rng = check_random_state(random_state)
+        self.rng = utils.check_random_state(random_state)
         self.disable_pbar = disable_pbar
+        self.earlystopper = earlystopper
+        self.diversity_order = diversity_order
+        self.warmup_iterations = warmup_iterations
+        self.poll_interval = poll_interval
         self.q_step = q_step
-        self.summarize = summarize
 
-    def __call__(self, theta, random_state=None):
-        if random_state is not None:
-            self.rng = check_random_state(random_state)
-        if isinstance(theta, torch.Tensor):
-            theta = theta.numpy()
-        beta, mu, p_death, eta = theta
+        self._input_args = utils.get_arguments()
+
         # Initialize the population with n traits equally distributed over the agents
-        population = self.rng.choice(self.initial_traits, size=self.n_agents)
+        self.population = self.rng.choice(self.initial_traits, size=self.n_agents)
         # Randomly associate birth dates with each of the traits
-        birth_date = np.ceil(self.rng.random(self.n_agents) * 50).astype(np.int64)
+        self.birth_date = np.ceil(self.rng.random(self.n_agents) * 50).astype(np.int64)
+        # Compute the number of unique traits
+        self.n_traits = len(np.unique(self.population))
+        self.timestep = self.birth_date.max()
 
-        # We start with a warming-up phase, in which we run the model until all
-        # initial traits have gone extinct
-        n_traits = len(np.unique(population))
-        # with tqdm.tqdm(desc="Burn-in period", disable=self.disable_pbar) as pbar:
-        #     while population.min() < self.initial_traits:
-        #         population, birth_date, n_traits, novel = self._get_dynamics(
-        #             beta, mu, p_death, population, birth_date, n_traits
-        #         )
-        #         pbar.update()
-        init = birth_date.max()
+    def fit(self):
+        self.earlystop = earlystopping.EARLYSTOPPERS[self.earlystopper](
+            self,
+            warmup=self.warmup_iterations,
+            diversity_order=self.diversity_order,
+            poll_interval=self.poll_interval,
+            verbose=False,
+        )
+
+        with tqdm.tqdm(desc="Burn-in period", disable=self.disable_pbar) as pbar:
+            while not self.earlystop():
+                self.step()
+                pbar.update()
+        return self
+
+    def sample(self, timesteps=1):
+        sample = np.zeros((timesteps, self.n_agents), dtype=np.int64)
+        self.population = utils.reindex_array(self.population)
+        self.n_traits = len(np.unique(self.population))
+        self.birth_date = self.birth_date - (self.birth_date.min() - 1)
+        init = self.birth_date.max() + 1
         for timestep in tqdm.trange(
-                init, self.warmup + init, desc="Warming up", disable=self.disable_pbar
+            init,
+            timesteps + init,
+            desc="Generating populations",
+            disable=self.disable_pbar,
         ):
-            population, birth_date, n_traits, novel = self._get_dynamics(
-                timestep, beta, mu, p_death, eta, population, birth_date, n_traits
-            )
+            self.step()
+            sample[timestep - init] = self.population
 
-        # Following the burn-in period, we sample n populations.
-        sample = np.zeros((self.timesteps, self.n_agents), dtype=np.int64)
-        population = reindex_array(population)
-        n_traits = len(np.unique(population))
-        birth_date = birth_date - (birth_date.min() - 1)
-        init = birth_date.max() + 1
-        for timestep in tqdm.trange(
-                init, self.timesteps + init, desc="Generating populations", disable=self.disable_pbar
-        ):
-            population, birth_date, n_traits, novel = self._get_dynamics(
-                timestep, beta, mu, p_death, eta, population, birth_date, n_traits
-            )
-            sample[timestep - init] = population
-
-        sample = bincount2d(sample)
-
-        if self.top_n > 0:
-            sample = sample[:, sample.sum(0).argsort()[-self.top_n :]]
-        sample = sample.T
-
-        if self.summarize == "hill":
-            sample = HillNumbers(q_step=self.q_step)(sample)
-        elif self.summarize == "count":
-            sample = sample[:, -1]
-            sample = sample[sample > 0][:, None].T
+        sample = utils.bincount2d(sample)
         return sample
 
-    def _get_dynamics(self, timestep, beta, mu, p_death, eta, population, birth_date, n_traits):
-        novel = self.rng.binomial(1, p_death, self.n_agents).astype(bool)
+    def step(self):
+        novel = self.rng.binomial(1, self.p_death, self.n_agents).astype(bool)
         copy_pool = np.arange(self.n_agents)
         # Limit the copy pool if age window is specified
-        if self.restricted_age_window:
-            age_low, age_high = 0, eta
+        if self.p_death < 1.0:
+            age_low, age_high = 0, self.eta
             parents, offset = np.array([]), 0
             while parents.sum() == 0:
-                parents = ((birth_date < (timestep - (age_low - offset)))
-                    & (birth_date > (timestep - (age_high + offset))))
+                parents = (self.birth_date < (self.timestep - (age_low - offset))) & (
+                    self.birth_date > (self.timestep - (age_high + offset))
+                )
                 offset += 1
             copy_pool = copy_pool[parents]
-        traits, counts = np.unique(population[copy_pool], return_counts=True)
-        counts = counts ** (1 + beta)
-        population[novel] = self.rng.choice(
+        traits, counts = np.unique(self.population[copy_pool], return_counts=True)
+        counts = counts ** (1 + self.beta)
+        self.population[novel] = self.rng.choice(
             traits, novel.sum(), p=counts / counts.sum()
         )
 
-        # innovators = (self.rng.random(self.n_agents) < mu) & novel
-        innovators = np.where(novel)[0][self.rng.random(novel.sum()) < mu]
-        n_innovations = len(innovators) # innovators.sum()
-        population[innovators] = np.arange(n_traits, n_traits + n_innovations)
-        birth_date[novel] = timestep # + 1
-        return population, birth_date, n_traits + n_innovations, novel
-    
+        innovators = np.where(novel)[0][self.rng.random(novel.sum()) < self.mu]
+        n_innovations = len(innovators)
+        self.population[innovators] = np.arange(
+            self.n_traits, self.n_traits + n_innovations
+        )
+        self.n_traits = self.n_traits + n_innovations
+        self.birth_date[novel] = self.timestep  # + 1
+        self.timestep += 1
+
+    def save(self, filepath: str):
+        if not filepath.endswith(".json"):
+            filepath += ".json"
+        with open(filepath, "w") as fp:
+            json.dump(
+                {
+                    "population": self.population.list(),
+                    "n_traits": self.n_traits,
+                    "birth_date": self.birth_date.list(),
+                    "params": self.input_args,
+                    "burnin-step": self.timestep,
+                },
+                fp,
+            )
+
+    @property
+    def input_args(self):
+        return {k: v for k, v in self._input_args.items()}

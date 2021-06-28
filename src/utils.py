@@ -1,3 +1,4 @@
+import inspect
 import itertools
 import multiprocessing as mp
 import numbers
@@ -7,6 +8,21 @@ import numpy as np
 import torch
 import torch.distributions as dists
 import tqdm
+
+
+def get_arguments():
+    """Returns tuple containing dictionary of calling function's
+       named arguments and a list of calling function's unnamed
+       positional arguments.
+    """
+    posname, kwname, args = inspect.getargvalues(inspect.stack()[1][0])[-3:]
+    posargs = args.pop(posname, [])
+    args.update(args.pop(kwname, []))
+    if 'self' in args:
+        del args['self']
+    if '__class__' in args:
+        del args['__class__']
+    return args
 
 
 class Randint:
