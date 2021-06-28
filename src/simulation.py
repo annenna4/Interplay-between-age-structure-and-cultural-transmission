@@ -3,7 +3,7 @@ import json
 import numpy as np
 import tqdm
 
-import earlystopping
+import augmentation
 import utils
 
 
@@ -51,7 +51,7 @@ class Simulator:
         self.timestep = self.birth_date.max()
 
     def fit(self):
-        self.earlystop = earlystopping.EARLYSTOPPERS[self.earlystopper](
+        self.earlystop = EARLYSTOPPERS[self.earlystopper](
             self,
             warmup=self.warmup_iterations,
             diversity_order=self.diversity_order,
@@ -143,3 +143,81 @@ class Simulator:
     @property
     def input_args(self):
         return {k: v for k, v in self._input_args.items()}
+
+
+class EarlyStopping:
+    def __init__(self, model: Simulator, verbose=False, **kwargs):
+        self.model = model
+        self.verbose = verbose
+        self.log = []
+
+    def __call__(self):
+        return self._criterion()
+
+    def _criterion(self) -> bool:
+        raise NotImplementedError
+
+
+class TurnoverEarlyStopping(EarlyStopping):
+    def __init__(self, model: Simulator, verbose=False, **kwargs):
+        super().__init__(model=model, verbose=verbose)
+
+    def _criterion(self) -> bool:
+        return self.model.population.min() >= self.model.initial_traits
+
+
+class MaxIterEarlyStopping(EarlyStopping):
+    def __init__(self, model: Simulator, warmup=10_000, verbose=False, **kwargs):
+        self.model = model
+        self.warmup = warmup
+        super().__init__(model=model, verbose=verbose)
+
+    def _criterion(self) -> bool:
+        self.warmup -= 1
+        return self.warmup <= 0
+
+
+class DiversityEarlyStopping(EarlyStopping):
+    def __init__(
+        self,
+        model: Simulator,
+        diversity_order=3.0,
+        poll_interval=1,
+        minimum_timesteps=1,
+        verbose=False,
+        **kwargs,
+    ):
+        super().__init__(model=model, verbose=verbose)
+        self.diversity_order = diversity_order
+        self.minimum_timesteps = minimum_timesteps
+        self.poll_interval = poll_interval
+        args = model.input_args
+        args["initial_traits"] = int(model.n_agents / 10)
+        self.alternative_model = Simulator(**args)
+
+    def __call__(self):
+        self.alternative_model.step()
+        return (
+            False
+            if not self.model.timestep % self.poll_interval == 0
+            else self._criterion()
+        )
+
+    def _criterion(self):
+        Qa, Qb = self.diversity(self.model), self.diversity(self.alternative_model)
+        if self.verbose:
+            self.pp.update([[Qa, Qb]])
+        self.log.append({"homogeneous": Qa, "heterogeneous": Qb})
+        return False if self.model.timestep < self.minimum_timesteps else Qa > Qb
+
+    def diversity(self, model: Simulator):
+        x = np.bincount(utils.reindex_array(model.population))
+        p = x[x > 0] / x.sum()
+        return augmentation.hill_number(x, self.diversity_order, p)
+
+
+EARLYSTOPPERS = {
+    "turnover": TurnoverEarlyStopping,
+    "max_iter": MaxIterEarlyStopping,
+    "diversity": DiversityEarlyStopping,
+}

@@ -12,16 +12,16 @@ import tqdm
 
 def get_arguments():
     """Returns tuple containing dictionary of calling function's
-       named arguments and a list of calling function's unnamed
-       positional arguments.
+    named arguments and a list of calling function's unnamed
+    positional arguments.
     """
     posname, kwname, args = inspect.getargvalues(inspect.stack()[1][0])[-3:]
     posargs = args.pop(posname, [])
     args.update(args.pop(kwname, []))
-    if 'self' in args:
-        del args['self']
-    if '__class__' in args:
-        del args['__class__']
+    if "self" in args:
+        del args["self"]
+    if "__class__" in args:
+        del args["__class__"]
     return args
 
 
@@ -98,7 +98,7 @@ def check_array(x):
 
 def bincount2d(a):
     N = a.max() + 1
-    a_offs = a + np.arange(a.shape[0])[:,None] * N
+    a_offs = a + np.arange(a.shape[0])[:, None] * N
     return np.bincount(a_offs.flatten(), minlength=a.shape[0] * N).reshape(-1, N)
 
 

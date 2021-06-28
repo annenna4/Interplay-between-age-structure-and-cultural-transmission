@@ -8,12 +8,12 @@ from datetime import datetime
 import numpy as np
 import torch.distributions as dists
 
-from simulation import Simulator
+import simulation
 import utils
 
 
 def simulate(n_agents, beta, mu, p_death, eta, earlystopper, timesteps):
-    simulator = Simulator(
+    simulator = simulation.Simulator(
         n_agents=n_agents,
         beta=beta,
         mu=mu,
@@ -23,7 +23,7 @@ def simulate(n_agents, beta, mu, p_death, eta, earlystopper, timesteps):
         disable_pbar=True,
     ).fit()
     sample = simulator.sample(timesteps=timesteps)
-    theta = np.array([beta, mu, p_death, eta])
+    theta = np.array([beta, mu, p_death, eta, simulator.timestep])
     return np.repeat(theta[None, :], len(sample), axis=0), sample
 
 
@@ -44,7 +44,6 @@ if __name__ == "__main__":
         default="diversity",
     )
     parser.add_argument("-b", "--burn_in", type=int, default=1000)
-    parser.add_argument("-p", "--top_n", type=int, default=0)
     parser.add_argument("--parameter_sweep", action="store_true")
 
     args = parser.parse_args()
