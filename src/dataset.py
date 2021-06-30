@@ -1,5 +1,3 @@
-from typing import NamedTuple, Dict, Iterable, Tuple
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -43,22 +41,27 @@ class PresimulatedDataset(Dataset):
         train_ids, test_ids = train_test_split(ids, test_size=test_size, shuffle=True)
         train_ids, test_ids = np.isin(self.ids, train_ids), np.isin(self.ids, test_ids)
         return (
-            PresimulatedDataset(self.ids[train_ids], self.theta[train_ids], self.dataset[train_ids]),
-            PresimulatedDataset(self.ids[test_ids], self.theta[test_ids], self.dataset[test_ids])
+            PresimulatedDataset(
+                self.ids[train_ids], self.theta[train_ids], self.dataset[train_ids]
+            ),
+            PresimulatedDataset(
+                self.ids[test_ids], self.theta[test_ids], self.dataset[test_ids]
+            ),
         )
 
 
 class SimulationDataset(Dataset):
-    
     def __init__(self, simulator, prior, num_simulations, transform=None):
-        
+
         self.simulator = simulator
         self.theta = prior.sample([num_simulations])
-        for index in np.random.choice(num_simulations, num_simulations // 2, replace=False):
+        for index in np.random.choice(
+            num_simulations, num_simulations // 2, replace=False
+        ):
             self.theta[index, 0] = 0.0
         self.num_simulations = num_simulations
         self.transform = transform
-    
+
     def __getitem__(self, i):
         theta, sample = self.theta[i], self.simulator(self.theta[i])
         if self.transform is not None:
@@ -71,7 +74,7 @@ class SimulationDataset(Dataset):
 
 class LazySimulationDataset(IterableDataset):
     def __init__(self, simulator, prior, num_simulations, transform=None):
-        
+
         self.simulator = simulator
         self.prior = prior
         self.num_simulations = num_simulations
@@ -85,7 +88,7 @@ class LazySimulationDataset(IterableDataset):
                 theta[0] = 0.0
             sample = self.simulator(theta)
             if self.transform is not None:
-                sample = self.transform(sample)            
+                sample = self.transform(sample)
             yield theta, sample
 
     def __len__(self):
