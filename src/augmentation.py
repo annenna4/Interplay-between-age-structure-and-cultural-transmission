@@ -18,11 +18,11 @@ class Compose:
         return x
 
     def __repr__(self):
-        format_string = self.__class__.__name__ + '('
+        format_string = self.__class__.__name__ + "("
         for transformer in self.transformers:
-            format_string += '\n'
-            format_string += '    {0}'.format(transformer)
-        format_string += '\n)'
+            format_string += "\n"
+            format_string += "    {0}".format(transformer)
+        format_string += "\n)"
         return format_string
 
 
@@ -50,12 +50,22 @@ class Sampler(TimeseriesTransformer):
         super().__init__()
 
     def transform(self, x):
-        return np.array([
-            np.bincount(self.rng.choice(v.shape[0], self.n, p=v / v.sum()), minlength=x.shape[1])
-            for v in x
-        ])
+        size = x.shape[1]
+        return np.array(
+            [
+                np.bincount(
+                    self.rng.choice(
+                        np.repeat(np.arange(size), counts.astype(np.int64)),
+                        self.n,
+                        replace=False,
+                    ),
+                    minlength=size,
+                )
+                for counts in x
+            ]
+        )
 
-    
+
 class Rescaler(TimeseriesTransformer):
     def __init__(self, timesteps: int = None):
         self.timesteps = timesteps
@@ -87,7 +97,9 @@ class Cutter(TimeseriesTransformer):
         super().__init__()
 
     def transform(self, x):
-        keep = ~self.rng.binomial(1, p=self.prior.sample(), size=x.shape[1]).astype(bool)
+        keep = ~self.rng.binomial(1, p=self.prior.sample(), size=x.shape[1]).astype(
+            bool
+        )
         return x[:, keep]
 
 
@@ -111,7 +123,7 @@ class Normalizer(TimeseriesTransformer):
         x = x + self.eps
         return x / x.sum(0)
 
-    
+
 class Standardizer(TimeseriesTransformer):
     def __init__(self, eps: float = 1e-8):
         self.eps = eps
