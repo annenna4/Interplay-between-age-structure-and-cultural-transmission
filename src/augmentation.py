@@ -44,8 +44,9 @@ class TimeseriesTransformer:
 
 
 class Sampler(TimeseriesTransformer):
-    def __init__(self, n, random_state: int = None):
+    def __init__(self, n, draws: int = 1, random_state: int = None):
         self.n = n
+        self.draws = draws
         self.rng = utils.check_random_state(random_state)
         super().__init__()
 
@@ -62,6 +63,7 @@ class Sampler(TimeseriesTransformer):
                     minlength=size,
                 )
                 for counts in x
+                for _ in range(self.draws)
             ]
         )
 
