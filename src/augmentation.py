@@ -196,15 +196,16 @@ def hill_number(x, q, p):
 
 
 class HillNumbers(TimeseriesTransformer):
-    def __init__(self, min_q=0, max_q=3, q_step=1):
+    def __init__(self, min_q=0, max_q=3, compute_p=True, q_step=1):
         self.q = np.arange(min_q, max_q + q_step, step=q_step)
+        self.compute_p = compute_p
         super().__init__()
 
     def transform(self, X):
         return np.array([self._transform(x) for x in X])
 
     def _transform(self, x):
-        p = x[x > 0] / x.sum()
+        p = x[x > 0] / x.sum() if self.compute_p else x
         return np.array([self._hn(x, q, p) for q in self.q])
 
     def _hn(self, x, q, p):
