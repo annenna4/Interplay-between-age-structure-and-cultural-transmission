@@ -205,7 +205,7 @@ class HillNumbers(TimeseriesTransformer):
         return np.array([self._transform(x) for x in X])
 
     def _transform(self, x):
-        p = x[x > 0] / x.sum() if self.compute_p else x
+        p = x[x > 0] / x.sum() if self.compute_p else x[x > 0]
         return np.array([self._hn(x, q, p) for q in self.q])
 
     def _hn(self, x, q, p):
