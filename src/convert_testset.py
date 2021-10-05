@@ -11,8 +11,7 @@ def extract_parameters(fname):
 
 FOLDERS = [f"thHigh{d}" for d in (2, 6, 11, 21)]
 
-id_number = 0
-theta, samples, ids = [], [], []
+theta, samples = [], []
 for folder in FOLDERS:
     for fname in os.scandir(f"../data/{folder}"):
         if fname.name.endswith(".txt"):
@@ -20,14 +19,13 @@ for folder in FOLDERS:
             samples.append(data)
             params = extract_parameters(fname.name)
             theta.append(np.repeat(params, data.shape[0], 0))
-            ids.append(np.array([id_number] * data.shape[0]))
-            id_number += 1
 max_len = max(len(sample[0]) for sample in samples)
 samples = [
     np.pad(sample, [(0, 0), (0, max_len - len(sample[0]))], "constant")
     for sample in samples
 ]
-theta, samples, ids = np.vstack(theta), np.vstack(samples), np.hstack(ids)
+theta, samples = np.vstack(theta), np.vstack(samples)
+ids = np.arange(samples.shape[0])
 np.savez_compressed(
     f"../data/matlab-testset.npz",
     theta=theta.astype(np.float64),
