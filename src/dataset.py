@@ -20,9 +20,10 @@ class PresimulatedDataset(Dataset):
         samples = samples.astype(np.float64)
         transformed, transformed_theta = [], []
         if transform is not None:
+            samples = transform(samples)
             for id in np.unique(ids):
                 idx = ids == id
-                sample = transform(samples[idx])
+                sample = samples[idx]
                 transformed.append(sample)
                 t = np.repeat(theta[idx], len(sample), 0)
                 transformed_theta.append(t)
