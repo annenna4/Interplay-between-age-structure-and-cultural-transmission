@@ -9,7 +9,7 @@ params_re = re.compile(r"samples_N\d+_pMut(.*?)_pDeath(.*?)_b(.*?)_thLow0_thHigh
 def extract_parameters(fname):
     return np.array(params_re.findall(fname)).astype(float)
 
-FOLDERS = [f"thHigh{d}" for d in (2, 6, 11, 21)]
+FOLDERS = [f"thHigh{d}{f}" for d in (2, 6, 11, 21) for f in ("", "_pDeath01")]
 
 theta, samples = [], []
 for folder in FOLDERS:
