@@ -48,7 +48,7 @@ class Simulator:
         self.birth_date = np.ceil(self.rng.random(self.n_agents) * 50).astype(np.int64)
         # Compute the number of unique traits
         self.n_traits = len(np.unique(self.population))
-        self.timestep = self.birth_date.max()
+        self.timestep = self.birth_date.max() + 1
 
     def fit(self):
         self.earlystop = EARLYSTOPPERS[self.earlystopper](
@@ -99,13 +99,14 @@ class Simulator:
         self.population[novel] = self.rng.choice(
             traits, novel.sum(), p=counts / counts.sum()
         )
-
-        innovators = np.flatnonzero(novel)[self.rng.random(novel.sum()) < self.mu]
+        innovators = np.flatnonzero(novel)[self.rng.binomial(1, self.mu, novel.sum()).astype(bool)]
         n_innovations = len(innovators)
+        assert self.population.max() < self.n_traits
         self.population[innovators] = np.arange(
             self.n_traits, self.n_traits + n_innovations
         )
         self.n_traits = self.n_traits + n_innovations
+        assert self.timestep > self.birth_date.max()
         self.birth_date[novel] = self.timestep
         self.timestep += 1
 

@@ -30,13 +30,13 @@ def simulate(n_agents, beta, mu, p_death, eta, earlystopper, timesteps):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-a", "--agents", type=int, default=1000)
-    parser.add_argument("-t", "--timesteps", type=int, default=1000)
+    parser.add_argument("-t", "--timesteps", type=int, default=10_000)
     parser.add_argument("-s", "--simulations", type=int, default=10_000)
     parser.add_argument("-w", "--workers", type=int, default=1)
     parser.add_argument("--beta", nargs=2, type=float, default=(0.0, 0.01))
     parser.add_argument("--mu", nargs=2, type=float, default=(0.0001, 0.1))
     parser.add_argument("--p_death", nargs=2, type=float, default=(0.1, 1.0))
-    parser.add_argument("--age_max", nargs=2, type=int, default=(1, 21))
+    parser.add_argument("--age_max", nargs=2, type=int, default=(2, 22))
     parser.add_argument(
         "--burnin_strategy",
         type=str,
@@ -60,7 +60,7 @@ if __name__ == "__main__":
             np.linspace(*args.beta, num=16),
             [0.0005],
             [0.02, 0.1],
-            [1, 5, 10, 20],
+            [2, 6, 11, 21],
             num_samples=100,
         )
 
