@@ -14,7 +14,7 @@ class Simulator:
         beta: float = 0.0,
         mu: float = 0.0005,
         p_death: float = 0.1,
-        eta: int = 10,
+        eta: int = 2,
         earlystopper: str = "diversity",
         initial_traits: int = 2,
         random_state: int = None,
