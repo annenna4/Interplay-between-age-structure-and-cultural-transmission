@@ -14,7 +14,7 @@ class Simulator:
         beta: float = 0.0,
         mu: float = 0.0005,
         p_death: float = 0.1,
-        eta: int = 10,
+        eta: int = 2,
         earlystopper: str = "diversity",
         initial_traits: int = 2,
         random_state: int = None,
@@ -70,16 +70,13 @@ class Simulator:
         sample = np.zeros((timesteps, self.n_agents), dtype=np.int64)
         self.population = utils.reindex_array(self.population)
         self.n_traits = len(np.unique(self.population))
-        self.birth_date = self.birth_date - (self.birth_date.min() - 1)
-        init = self.birth_date.max() + 1
         for timestep in tqdm.trange(
-            init,
-            timesteps + init,
+            timesteps,
             desc="Generating populations",
             disable=self.disable_pbar,
         ):
             self.step()
-            sample[timestep - init] = self.population
+            sample[timestep] = self.population
 
         sample = utils.bincount2d(sample)
         return sample
