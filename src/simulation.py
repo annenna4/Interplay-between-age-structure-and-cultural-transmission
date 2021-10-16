@@ -21,7 +21,7 @@ class Simulator:
         disable_pbar: bool = False,
         diversity_order: float = 5.0,
         warmup_iterations: int = 10_000,
-        minimum_timesteps: int = 1,
+        minimum_timesteps: int = 1000,
         poll_interval: int = 100,
         q_step: float = 0.25,
     ):
@@ -62,6 +62,9 @@ class Simulator:
 
         with tqdm.tqdm(desc="Burn-in period", disable=self.disable_pbar) as pbar:
             while not self.earlystop():
+                self.step()
+                pbar.update()
+            for _ in range(self.warmup_iterations):
                 self.step()
                 pbar.update()
         return self
