@@ -110,7 +110,9 @@ class Simulator:
         self.population[novel] = self.rng.choice(
             traits, novel.sum(), p=counts / counts.sum()
         )
-        innovators = np.flatnonzero(novel)[self.rng.binomial(1, self.mu, novel.sum()).astype(bool)]
+        innovators = np.flatnonzero(novel)[
+            self.rng.binomial(1, self.mu, novel.sum()).astype(bool)
+        ]
         n_innovations = len(innovators)
         assert self.population.max() < self.n_traits
         self.population[innovators] = np.arange(
