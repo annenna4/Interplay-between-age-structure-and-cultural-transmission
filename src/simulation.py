@@ -44,7 +44,14 @@ class Simulator:
         self._input_args = utils.get_arguments()
 
         # Initialize the population with n traits equally distributed over the agents
-        self.population = self.rng.choice(self.initial_traits, size=self.n_agents)
+        # self.population = self.rng.choice(self.initial_traits, size=self.n_agents)
+        self.population = np.ones(self.n_agents, dtype=np.int64)
+        for i in range(1, self.initial_traits + 1):
+            self.population[
+                int((i - 1) * self.n_agents / self.initial_traits) : int(
+                    i * self.n_agents / self.initial_traits
+                )
+            ] = i - 1
         # Randomly associate birth dates with each of the traits
         self.birth_date = np.ceil(self.rng.random(self.n_agents) * 50).astype(np.int64)
         # Compute the number of unique traits
