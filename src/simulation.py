@@ -1,4 +1,5 @@
 import json
+import operator
 
 import numpy as np
 import tqdm
@@ -184,7 +185,7 @@ class DiversityEarlyStopping(EarlyStopping):
         model: Simulator,
         diversity_order=3.0,
         poll_interval=1,
-        minimum_timesteps=1,
+        minimum_timesteps=1000,
         verbose=False,
         **kwargs,
     ):
@@ -192,6 +193,8 @@ class DiversityEarlyStopping(EarlyStopping):
         self.diversity_order = diversity_order
         self.minimum_timesteps = minimum_timesteps
         self.poll_interval = poll_interval
+        self.crossings = 0
+        self.patience = 3
         args = model.input_args
         args["initial_traits"] = int(model.n_agents / 10)
         self.alternative_model = Simulator(**args)
@@ -205,11 +208,12 @@ class DiversityEarlyStopping(EarlyStopping):
         )
 
     def _criterion(self):
+        compare = (operator.lt, operator.gt)[int(self.crossings % 2 == 0)]
         Qa, Qb = self.diversity(self.model), self.diversity(self.alternative_model)
-        if self.verbose:
-            self.pp.update([[Qa, Qb]])
         self.log.append({"homogeneous": Qa, "heterogeneous": Qb})
-        return False if self.model.timestep < self.minimum_timesteps else Qa > Qb
+        if self.model.timestep > self.minimum_timesteps:
+            self.crossings += int(compare(Qa, Qb))
+        return self.crossings == self.patience
 
     def diversity(self, model: Simulator):
         x = np.bincount(utils.reindex_array(model.population))
