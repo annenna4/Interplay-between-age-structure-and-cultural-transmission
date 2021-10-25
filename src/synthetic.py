@@ -49,10 +49,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.parameter_sweep:
+        if args.p_death[0] != args.p_death[1]:
+            p_death_prior = dists.Uniform(*args.p_death)
+        else:
+            p_death_prior = dists.Constant(args.p_death[0])
         prior = utils.IndependentPriors(
-            dists.Normal(*args.beta),  # beta prior
-            dists.Uniform(*args.mu),  # mu prior
-            dists.Uniform(*args.p_death),  # p_death prior
+            dists.Normal(*args.beta),      # beta prior
+            dists.Uniform(*args.mu),       # mu prior
+            p_death_prior,                 # p_death prior
             utils.Randint(*args.age_max),  # threshold_high prior
         )
     else:
