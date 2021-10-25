@@ -52,7 +52,7 @@ if __name__ == "__main__":
         if args.p_death[0] != args.p_death[1]:
             p_death_prior = dists.Uniform(*args.p_death)
         else:
-            p_death_prior = dists.Constant(args.p_death[0])
+            p_death_prior = utils.Constant(args.p_death[0])
         prior = utils.IndependentPriors(
             dists.Normal(*args.beta),      # beta prior
             dists.Uniform(*args.mu),       # mu prior
