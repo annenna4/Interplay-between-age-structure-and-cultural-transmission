@@ -63,7 +63,7 @@ if __name__ == "__main__":
         prior = utils.ParamSweep(
             np.linspace(*args.beta, num=16),
             [0.0005],
-            [0.02, 0.1],
+            [0.02, 0.03, 0.04, 0.05, 0.1],
             [2, 6, 11, 21],
             num_samples=100,
         )
