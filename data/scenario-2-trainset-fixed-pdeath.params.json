@@ -1,0 +1,1 @@
+{"agents": 100000, "timesteps": 1, "simulations": 10000, "workers": 40, "beta": [0.0, 0.001], "mu": [1e-05, 0.001], "p_death": [0.02, 0.02], "age_max": [2, 22], "burnin_strategy": "diversity", "burn_in": 1000, "parameter_sweep": false}
